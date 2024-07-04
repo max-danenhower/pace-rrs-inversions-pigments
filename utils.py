@@ -10,14 +10,12 @@ import math
 from rrs_inversion_pigments import rrs_inversion_pigments
 
 '''
-
 Max Danenhower
 This file provides methods to help retrieve Rrs data from the PACE Satellite, use that data to calculate chlorophyll a, cholorphyll b, 
 chlorophyll c, and PPC concentrations, and plot a visualization of those pigment concentrations. 
-
 '''
 
-def load_rrs(tspan, resolution):
+def load_data(tspan, resolution):
     '''
     Downloads Remote Sensing Reflectance (RRS) data from the PACE Satellite and saves the nc file(s) to a folder named 'data'
 
@@ -30,17 +28,23 @@ def load_rrs(tspan, resolution):
     Returns:
     An array containig the path(s) to the downloaded PACE files
     '''
-    results = earthaccess.search_data(
+    rrs_results = earthaccess.search_data(
         short_name='PACE_OCI_L3M_RRS_NRT',
         temporal=tspan,
         granule_name='*.DAY.*.Rrs.' + resolution + '.*'
     )
 
-    paths = earthaccess.download(results, 'data')
+    sal_temp_results = earthaccess.search_data(
+        short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
+        temporal=tspan
+    )
 
-    return paths
+    rrs_paths = earthaccess.download(rrs_results, 'data')
+    sal_temp_paths = earthaccess.download(sal_temp_results, 'data')
 
-def create_rrs_dataset(paths, n, s, w, e):
+    return rrs_paths, sal_temp_paths
+
+def create_rrs_dataset(rrs_paths, sal_temp_paths, n, s, w, e):
     '''
     Creates an xarray data array containing the Rrs at each wavelength for a given set of lat/lon coordinates 
 
@@ -55,22 +59,66 @@ def create_rrs_dataset(paths, n, s, w, e):
     A data array of Rrs values at each wavelength over a specified lat/lon box
     '''
 
+    if (n < s):
+        raise('northern boundary must be greater than southern boundary')
+    
+    if (e < w):
+        raise('eastern boundary must be greater than western boundary')
+
     # returns the Rrs values from a single file
-    if isinstance(paths, str):
-        dataset = xr.open_dataset(paths)
-        return dataset["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
+    if isinstance(rrs_paths, str):
+        rrs_data = xr.open_dataset(rrs_paths)
+        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
 
     # creates a date averaged dataset of Rrs values over the given files
-    if isinstance(paths, list):
-        dataset = xr.open_mfdataset(
-            paths,
+    if isinstance(rrs_paths, list):
+        rrs_data = xr.open_mfdataset(
+            rrs_paths,
             combine="nested",
-            concat_dim="date",
+            concat_dim="date"
         )
-        box = dataset["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
-        return box.compute()
-    
-    print('bad path')
+        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
+        rrs = rrs.compute()
+
+    # returns the sal and temp values from a single file
+    if isinstance(sal_temp_paths, str):
+        sal_temp = xr.open_dataset(sal_temp_paths)
+        sal = sal_temp['smap_sss'].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
+        temp = sal_temp['anc_sst'].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
+
+
+    # creates a date averaged dataset of sal and temp values over the given files
+    if isinstance(sal_temp_paths, list):
+        sal_temp = xr.open_mfdataset(
+            sal_temp_paths,
+            combine="nested",
+            concat_dim="date"
+        )
+        sal = sal_temp["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
+        temp = sal_temp["anc_sst"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
+        sal = sal.compute()
+        temp = temp.compute()
+
+    # merge datasets
+    sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
+    temp = temp.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
+
+    combined_ds = xr.Dataset(
+        {
+            "rrs": (["lat", "lon", 'wavelength'], rrs.data),
+            'sal': (["lat", "lon"], sal.data),
+            'temp': (["lat", "lon"], temp.data)
+        },
+        coords={
+            "lat": rrs.lat,
+            "lon": rrs.lon,
+            'wavelength': rrs.wavelength
+        }
+    )
+
+    return combined_ds
+
+        
             
 def calculate_pigments(box):
     '''
@@ -79,11 +127,13 @@ def calculate_pigments(box):
     values for each lat/lon coordinate in the box's range
 
     Parameters:
-    box (xr dataarray): An xarray data array containing the Rrs for each wavelength at each lat/lon coordinate
+    box (xr dataarray): An xarray data array containing the Rrs for each wavelength, salinity, and temperature at each lat/lon coordinate
 
     Returns:
     An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
     '''
+
+
     progress = 1 # keeps track of how many pixels have been calculated
     pixels = box.lat.size * box.lon.size
     print('num pixels: ', pixels)
@@ -102,7 +152,7 @@ def calculate_pigments(box):
             Rrs = np.zeros(len(wl))
             Rrs_unc = np.zeros(len(wl))
             for w in range(len(wl)):
-                rrs = box[lat][lon][w].values.item()
+                rrs = box['rrs'][lat][lon][w].values.item()
                 if rrs == 0:
                     Rrs[w] = 0.000001
                     Rrs_unc[w] = 0.000001 * 0.05
@@ -110,9 +160,11 @@ def calculate_pigments(box):
                     Rrs[w] = rrs
                     Rrs_unc[w] = rrs * 0.05 # uncertainty is 5% of rrs value
 
-            if not math.isnan(Rrs[0]):
-                #TODO: use real temp and salinity values 
-                vals = rrs_inversion_pigments(Rrs, Rrs_unc, wl, 22, 35)
+            sal = box['sal'][lat][lon].data.item()
+            temp = box['temp'][lat][lon].data.item() - 273 # convert from kelvin to celcius
+
+            if not (math.isnan(Rrs[0]) or math.isnan(sal) or math.isnan(temp)):
+                vals = rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal)
                 chla[lat][lon] = vals[0][0]
                 chlb[lat][lon] = vals[0][1]
                 chlc[lat][lon] = vals[0][2]
