@@ -112,7 +112,7 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
     UB = [s_nap[2], m_nap[2], s_cdom[2], m_cdom[2], bbpbp_ratio[2], cpgam[2], m_cp[2],C_fluor[2]] + np.tile(m_gaus[2],len(peaks)).tolist() + (peaks+1).tolist() + (sig+1).tolist()
 
     # Run the inversion using a non-linear least squares inversion function
-    result = least_squares(lsqnonlin_Amp_gen, Amp0, bounds=(LB, UB), ftol=1e-6, xtol=1e-6, gtol=1e-6, 
+    result = least_squares(lsqnonlin_Amp_gen, Amp0, bounds=(LB, UB), ftol=1e-4, xtol=1e-6, gtol=1e-6, 
                            args=(Upos, Uunc, wl, bb_sw, a_sw, LNOT))
     Amp2 = result.x
 

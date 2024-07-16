@@ -26,25 +26,36 @@ def load_data(tspan, resolution):
     resolution (string): the resolution of data being retrieved. Either '1deg', '0.1deg' or '4km'
 
     Returns:
-    An array containig the path(s) to the downloaded PACE files
+    An list containig the path(s) to the downloaded PACE files
     '''
+
     rrs_results = earthaccess.search_data(
         short_name='PACE_OCI_L3M_RRS_NRT',
         temporal=tspan,
         granule_name='*.DAY.*.Rrs.' + resolution + '.*'
     )
 
-    sal_temp_results = earthaccess.search_data(
+    sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
         temporal=tspan
     )
 
-    rrs_paths = earthaccess.download(rrs_results, 'data')
-    sal_temp_paths = earthaccess.download(sal_temp_results, 'data')
+    temp_results = earthaccess.search_data(
+        short_name='MUR-JPL-L4-GLOB-v4.1',
+        temporal=tspan
+    )
 
-    return rrs_paths, sal_temp_paths
+    if (len(rrs_results) > 0 and len(sal_results) > 0 and len(temp_results) > 0):
+        rrs_paths = earthaccess.download(rrs_results, 'rrs_data')
+        sal_paths = earthaccess.download(sal_results, 'sal_data')
+        temp_paths = earthaccess.download(temp_results, 'temp_data')
 
-def create_rrs_dataset(rrs_paths, sal_temp_paths, n, s, w, e):
+        return rrs_paths, sal_paths, temp_paths
+    
+    print('Missing granules')
+    return None
+
+def create_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
     '''
     Creates an xarray data array containing the Rrs at each wavelength for a given set of lat/lon coordinates 
 
@@ -64,14 +75,13 @@ def create_rrs_dataset(rrs_paths, sal_temp_paths, n, s, w, e):
     
     if (e < w):
         raise('eastern boundary must be greater than western boundary')
-
-    # returns the Rrs values from a single file
+    
+    # creates a dataset of rrs values of the given file
     if isinstance(rrs_paths, str):
         rrs_data = xr.open_dataset(rrs_paths)
         rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
-
-    # creates a date averaged dataset of Rrs values over the given files
-    if isinstance(rrs_paths, list):
+    elif isinstance(rrs_paths, list):
+        # if given a list of files, create a date averaged dataset of Rrs values 
         rrs_data = xr.open_mfdataset(
             rrs_paths,
             combine="nested",
@@ -79,29 +89,45 @@ def create_rrs_dataset(rrs_paths, sal_temp_paths, n, s, w, e):
         )
         rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
         rrs = rrs.compute()
+    else:
+        raise TypeError('rrs_paths must be a string or list')
 
-    # returns the sal and temp values from a single file
-    if isinstance(sal_temp_paths, str):
-        sal_temp = xr.open_dataset(sal_temp_paths)
-        sal = sal_temp['smap_sss'].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
-        temp = sal_temp['anc_sst'].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
-
-
-    # creates a date averaged dataset of sal and temp values over the given files
-    if isinstance(sal_temp_paths, list):
-        sal_temp = xr.open_mfdataset(
-            sal_temp_paths,
+    # creates a dataset of sal and temp values of the given file
+    if isinstance(sal_paths, str):
+        sal = xr.open_dataset(sal_paths)
+        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
+    elif isinstance(sal_paths, list):
+        # if given a list of files, create a date averaged dataset of salinity values 
+        sal = xr.open_mfdataset(
+            sal_paths,
             combine="nested",
             concat_dim="date"
         )
-        sal = sal_temp["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
-        temp = sal_temp["anc_sst"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
+        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
         sal = sal.compute()
-        temp = temp.compute()
+    else:
+        raise TypeError('sal_paths must be a string or list')
 
-    # merge datasets
+    # creates a dataset of sal and temp values of the given file
+    if isinstance(temp_paths, str):
+        temp = xr.open_dataset(temp_paths)
+        temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
+        temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
+    elif isinstance(temp_paths, list):
+        # if given a list of files, create a date averaged dataset of temperature values 
+        temp = xr.open_mfdataset(
+            temp_paths,
+            combine="nested",
+            concat_dim="time"
+        )
+        temp = temp['analysed_sst'].sel({"lat": slice(s, n), "lon": slice(w, e)}).mean('time')
+        temp = temp.compute()
+    else:
+        raise TypeError('temp_paths must be a string or list')
+
+    # merge datasets to Rrs coordinates
     sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
-    temp = temp.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
+    temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
 
     combined_ds = xr.Dataset(
         {
@@ -203,7 +229,7 @@ def calculate_pigments(box):
 
     return xr.Dataset({'chla': chla, 'chlb': chlb, 'chlc': chlc, 'ppc': ppc})
 
-def plot_pigments(data, lower_bound, upper_bound):
+def plot_pigments(data, lower_bound, upper_bound, label):
     '''
     Plots the pigment data with lat/lon coordinates using a color map
 
@@ -212,6 +238,10 @@ def plot_pigments(data, lower_bound, upper_bound):
     lower_bound (float): The lowest value represented on the color scale
     upper_bound (float): The upper value represented on the color scale
     '''
+
+    data.attrs["long_name"] = label
+
+
     cmap = plt.get_cmap("viridis")
     colors = cmap(np.linspace(0, 1, cmap.N))
     colors = np.vstack((np.array([1, 1, 1, 1]), colors)) 
@@ -225,6 +255,8 @@ def plot_pigments(data, lower_bound, upper_bound):
     data.plot(cmap=custom_cmap, ax=ax, norm=norm)
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
+
+
 
 
     
