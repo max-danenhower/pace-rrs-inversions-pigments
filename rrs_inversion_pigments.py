@@ -82,8 +82,8 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
     Upos = (-G1 + np.sqrt(G1**2 + 4*G2*rrs))/(2*G2)
     Uunc = (-G1 + np.sqrt(G1**2 + 4*G2*rrs_unc))/(2*G2)
 
-    peaks = np.array([384,413,435,461,464,490,532,583,623,644,655,676])
-    sig = np.array([23,9,14,11,19,19,20,20,15,12,12,9])
+    peaks = np.array([384,413,435,461,464,490,532,583])
+    sig = np.array([23,9,14,11,19,19,20,20])
 
     # Define the center peak locations (nm) and widths (nm) of the Gaussian functions
     # sig = sigma, where FWHM = sigma*2.355 and FWHM = full width at half max
@@ -125,10 +125,26 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
     NAP = (Amp2[1]*nap)
     CP = (Amp2[6]*cp)
 
-    peak_locs=Amp2[20:32]
-    sigs=Amp2[32:44]
+    peak_locs=Amp2[16:24]
+    sigs=Amp2[24:32]
 
-    APHI = create_aphi(wl, peak_locs, sigs, Amp2)
+    # define Gaussian shapes
+    gaus = np.zeros((len(wl), len(peak_locs)))
+
+    for ii in range(len(peak_locs)):
+        for jj in range(len(wl)):
+            gaus[jj, ii] = np.exp(-0.5 * ((wl[jj] - peak_locs[ii]) / sigs[ii])**2)
+
+    # multiply each Gaussian by the initial guess amplitude
+    for i in range(len(peak_locs)):
+        gaus[:, i] = Amp0[i + 8] * gaus[:, i]
+
+    # Sum all of the Gaussians to get a_phi
+    APHI = np.zeros(len(wl))
+    for j in range(len(wl)):
+        APHI[j] = 0
+        for i in range(len(peak_locs)):
+           APHI[j] += np.sum(gaus[j, i])
 
     # particulate absorbtion
     AP = NAP + APHI.T
@@ -181,8 +197,8 @@ def lsqnonlin_Amp_gen(Amp0,Upos,Uunc,wvns,bb_sw_r,a_sw_r,lnot):
     The following function uses a non-linear least squares solver to minimize
     the difference between the measured Rrs and the modeled Rrs
     '''
-    peak_locs = Amp0[20:32]
-    sig = Amp0[32:44]
+    peak_locs = Amp0[16:24]
+    sig = Amp0[24:32]
 
     # define cdom and nap functions; both slope and magnitude are allowed to vary
     cdom = np.exp(-Amp0[2] * (wvns-lnot))
@@ -191,7 +207,23 @@ def lsqnonlin_Amp_gen(Amp0,Upos,Uunc,wvns,bb_sw_r,a_sw_r,lnot):
     nap = np.exp(-Amp0[0] * (wvns-lnot))
     NAP = Amp0[1]*nap
 
-    APHI = create_aphi(wvns, peak_locs, sig, Amp0)
+    # define Gaussian shapes
+    gaus = np.zeros((len(wvns), len(peak_locs)))
+
+    for ii in range(len(peak_locs)):
+        for jj in range(len(wvns)):
+            gaus[jj, ii] = np.exp(-0.5 * ((wvns[jj] - peak_locs[ii]) / sig[ii])**2)
+
+    # multiply each Gaussian by the initial guess amplitude
+    for i in range(len(peak_locs)):
+        gaus[:, i] = Amp0[i + 8] * gaus[:, i]
+
+    # Sum all of the Gaussians to get a_phi
+    APHI = np.zeros(len(wvns))
+    for j in range(len(wvns)):
+        APHI[j] = 0
+        for i in range(len(peak_locs)):
+           APHI[j] += np.sum(gaus[j, i])
 
     # define cp (slope and magnitude can vary)
     cp = (wvns/lnot)**(-Amp0[5])
@@ -218,31 +250,6 @@ def lsqnonlin_Amp_gen(Amp0,Upos,Uunc,wvns,bb_sw_r,a_sw_r,lnot):
     spec_min = (Upos - Unew)/Uunc
 
     return spec_min
-
-def create_aphi(wvns, peak_locs, sig, Amp0):
-    '''
-    Helper function used in lsqnonlin_Amp_gen and rrs_inversion_pigments
-    '''
-
-    # define Gaussian shapes
-    gaus = np.zeros((len(wvns), len(peak_locs)))
-
-    for ii in range(len(peak_locs)):
-        for jj in range(len(wvns)):
-            gaus[jj, ii] = np.exp(-0.5 * ((wvns[jj] - peak_locs[ii]) / sig[ii])**2)
-
-    # multiply each Gaussian by the initial guess amplitude
-    for i in range(len(peak_locs)):
-        gaus[:, i] = Amp0[i + 8] * gaus[:, i]
-
-    # Sum all of the Gaussians to get a_phi
-    APHI = np.zeros(len(wvns))
-    for j in range(len(wvns)):
-        APHI[j] = 0
-        for i in range(len(peak_locs)):
-           APHI[j] += np.sum(gaus[j, i])
-
-    return APHI
 
 def RInw(
     lambda_: Union[int, float, np.ndarray],
