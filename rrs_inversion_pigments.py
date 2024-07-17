@@ -133,7 +133,7 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
 
     for ii in range(len(peak_locs)):
         for jj in range(len(wl)):
-            gaus[jj, ii] = np.exp(-0.5 * ((wl[jj] - peak_locs[ii]) / sigs[ii])**2)
+            gaus[jj, ii] = np.exp(-0.5 * ((wl[jj] - peak_locs[ii]) / sigs[ii])**2) # missing parenthesis?
 
     # multiply each Gaussian by the initial guess amplitude
     for i in range(len(peak_locs)):
@@ -154,7 +154,7 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
 
     # Define the fluorescence Gaussian; 685 peak for Chl fluor; 10.6 sigma
     fluor = np.zeros_like(wl)
-    fluor = np.exp(-0.5 * ((wl - 685) / 10.6)**2)
+    fluor = np.exp(-0.5 * ((wl - 685) / 10.6)**2) # missing parenthesis
 
     F = Amp0[7]*fluor
 
@@ -212,7 +212,7 @@ def lsqnonlin_Amp_gen(Amp0,Upos,Uunc,wvns,bb_sw_r,a_sw_r,lnot):
 
     for ii in range(len(peak_locs)):
         for jj in range(len(wvns)):
-            gaus[jj, ii] = np.exp(-0.5 * ((wvns[jj] - peak_locs[ii]) / sig[ii])**2)
+            gaus[jj, ii] = np.exp(-0.5 * ((wvns[jj] - peak_locs[ii]) / sig[ii])**2) # missing parenthesis?
 
     # multiply each Gaussian by the initial guess amplitude
     for i in range(len(peak_locs)):
@@ -223,7 +223,7 @@ def lsqnonlin_Amp_gen(Amp0,Upos,Uunc,wvns,bb_sw_r,a_sw_r,lnot):
     for j in range(len(wvns)):
         APHI[j] = 0
         for i in range(len(peak_locs)):
-           APHI[j] += np.sum(gaus[j, i])
+           APHI[j] += gaus[j, i]
 
     # define cp (slope and magnitude can vary)
     cp = (wvns/lnot)**(-Amp0[5])
@@ -237,7 +237,7 @@ def lsqnonlin_Amp_gen(Amp0,Upos,Uunc,wvns,bb_sw_r,a_sw_r,lnot):
 
     # Define the fluorescence Gaussian; 685 peak for Chl fluor; 10.6 sigma
     fluor = np.zeros_like(wvns)
-    fluor = np.exp(-0.5 * ((wvns - 685) / 10.6)**2)
+    fluor = np.exp(-0.5 * ((wvns - 685) / 10.6)**2) # missing parenthesis?
 
     F = Amp0[7]*fluor
 
