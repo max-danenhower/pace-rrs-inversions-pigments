@@ -159,7 +159,6 @@ def calculate_pigments(box):
     An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
     '''
 
-
     progress = 1 # keeps track of how many pixels have been calculated
     pixels = box.lat.size * box.lon.size
     print('num pixels: ', pixels)
@@ -241,7 +240,6 @@ def plot_pigments(data, lower_bound, upper_bound, label):
 
     data.attrs["long_name"] = label
 
-
     cmap = plt.get_cmap("viridis")
     colors = cmap(np.linspace(0, 1, cmap.N))
     colors = np.vstack((np.array([1, 1, 1, 1]), colors)) 
@@ -252,6 +250,7 @@ def plot_pigments(data, lower_bound, upper_bound, label):
     ax = plt.axes(projection=ccrs.PlateCarree())
     ax.coastlines()
     ax.gridlines(draw_labels={"left": "y", "bottom": "x"})
+    ax.set_extent([-72, -64, 40, 46], crs=ccrs.PlateCarree())
     data.plot(cmap=custom_cmap, ax=ax, norm=norm)
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
