@@ -250,7 +250,6 @@ def plot_pigments(data, lower_bound, upper_bound, label):
     ax = plt.axes(projection=ccrs.PlateCarree())
     ax.coastlines()
     ax.gridlines(draw_labels={"left": "y", "bottom": "x"})
-    ax.set_extent([-72, -64, 40, 46], crs=ccrs.PlateCarree())
     data.plot(cmap=custom_cmap, ax=ax, norm=norm)
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
