@@ -12,12 +12,13 @@ from rrs_inversion_pigments import rrs_inversion_pigments
 '''
 Max Danenhower
 This file provides methods to help retrieve Rrs data from the PACE Satellite, use that data to calculate chlorophyll a, cholorphyll b, 
-chlorophyll c, and PPC concentrations, and plot a visualization of those pigment concentrations. 
+chlorophyll c, and PPC concentrations, and plot a visualization of those pigment concentrations on a color map. 
 '''
 
 def load_data(tspan, resolution):
     '''
-    Downloads Remote Sensing Reflectance (RRS) data from the PACE Satellite and saves the nc file(s) to a folder named 'data'
+    Downloads Remote Sensing Reflectance (Rrs) data from the PACE Satellite, as well as salinity and temperature data (from different 
+    missions), and saves the data files to local folders names 'rrs_data', 'sal_data', and 'temp_data'
 
     Parameters:
     tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
@@ -26,7 +27,9 @@ def load_data(tspan, resolution):
     resolution (string): the resolution of data being retrieved. Either '1deg', '0.1deg' or '4km'
 
     Returns:
-    An list containig the path(s) to the downloaded PACE files
+    rrs_paths (list): A list containig the file path(s) to the downloaded Rrs PACE files
+    sal_paths (list): A list containig the file path(s) to the downloaded salinity files
+    temp_paths (list): A list containig the file path(s) to the downloaded temperature files
     '''
 
     rrs_results = earthaccess.search_data(
@@ -34,33 +37,44 @@ def load_data(tspan, resolution):
         temporal=tspan,
         granule_name='*.DAY.*.Rrs.' + resolution + '.*'
     )
+    if (len(rrs_results) > 0):
+        rrs_paths = earthaccess.download(rrs_results, 'rrs_data')
+    else:
+        rrs_paths = []
+        print('No Rrs data found')
 
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
         temporal=tspan
     )
+    if (len(sal_results) > 0):
+        sal_paths = earthaccess.download(sal_results, 'sal_data')
+    else:
+        sal_paths = []
+        print('No salinity data found')
 
     temp_results = earthaccess.search_data(
         short_name='MUR-JPL-L4-GLOB-v4.1',
         temporal=tspan
     )
-
-    if (len(rrs_results) > 0 and len(sal_results) > 0 and len(temp_results) > 0):
-        rrs_paths = earthaccess.download(rrs_results, 'rrs_data')
-        sal_paths = earthaccess.download(sal_results, 'sal_data')
+    if (len(temp_results) > 0):
         temp_paths = earthaccess.download(temp_results, 'temp_data')
+    else:
+        temp_paths = []
+        print('No temperature data found')
 
-        return rrs_paths, sal_paths, temp_paths
-    
-    print('Missing granules')
-    return None
+    return rrs_paths, sal_paths, temp_paths
 
 def create_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
     '''
-    Creates an xarray data array containing the Rrs at each wavelength for a given set of lat/lon coordinates 
+    Creates an xarray data array with latitude and longitude coordinates. Each coordinate contains a hyperspectral Rrs spectra with 
+    corresponding wavelenghts, salinity, and temperature. If more than one file for Rrs, salinity, or temperature are given, uses the 
+    date averaged values. 
 
     Parameters:
-    paths (array or string): a single file path to a PACE Rrs file or an array of file paths to PACE Rrs files
+    rrs_paths (array or string): a single file path to a PACE Rrs file or an array of file paths to PACE Rrs files
+    sal_paths (array or string): a single file path to a salinity file or an array of file paths to salinity files
+    temp_paths (array or string): a single file path to a temperature file or an array of file paths to temperature files
     n (float): northern boundary of the data array's lat
     s (float): southern boundary of the data array's lat
     w (float): western boundary of the data array's lon
@@ -149,7 +163,7 @@ def create_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
 def calculate_pigments(box):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
-    +c2 (Chlc12), and photoprotective carotenoids (PPC) given a remote sensing reflectance spectra. Calculates the pigment 
+    +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
     values for each lat/lon coordinate in the box's range
 
     Parameters:
@@ -236,6 +250,7 @@ def plot_pigments(data, lower_bound, upper_bound, label):
     data (xr data array): An array with pigment values at each lat/lon coordinate
     lower_bound (float): The lowest value represented on the color scale
     upper_bound (float): The upper value represented on the color scale
+    label (string): A label for the graph
     '''
 
     data.attrs["long_name"] = label
