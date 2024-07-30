@@ -205,6 +205,24 @@ def calculate_pigments(box):
     print()
     lat_coord = box.lat.to_numpy()
     lon_coord = box.lon.to_numpy()
+
+    pigments = xr.Dataset(
+        {
+            'chla': (['lat', 'lon'], chla, {'units': 'mg/m^3'}),
+            'chla': (['lat', 'lon'], chlb, {'units': 'mg/m^3'}),
+            'chla': (['lat', 'lon'], chlc, {'units': 'mg/m^3'}),
+            'chla': (['lat', 'lon'], ppc, {'units': 'mg/m^3'})
+        },
+        coords={
+            'lat': lat_coord,
+            'lon': lon_coord
+        }
+
+    )
+
+    return pigments
+
+    '''
     chla = xr.DataArray(
         chla,
         dims=['lat', 'lon'],
@@ -234,6 +252,7 @@ def calculate_pigments(box):
     )
 
     return xr.Dataset({'chla': chla, 'chlb': chlb, 'chlc': chlc, 'ppc': ppc})
+    '''
 
 def plot_pigments(data, lower_bound, upper_bound, label):
     '''

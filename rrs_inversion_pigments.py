@@ -525,7 +525,6 @@ def get_water_iops(lambda_, T=22, S=35):
     # use salt water scattering from Zhang et al 2009
     _, b_sw, _, _ = betasw124_ZHH2009(lambda_, S, T)
 
-    # max d added this
     bb_sw = b_sw/2 # divide total scattering by 2 to get the backscattering component 
 
     # use the temp and salinity corrections from Sullivan et al. 2006
