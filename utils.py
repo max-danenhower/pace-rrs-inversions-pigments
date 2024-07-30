@@ -187,18 +187,11 @@ def calculate_pigments(box):
             sys.stdout.write('\rProgress: ' + str(progress) + '/' + str(pixels))
             sys.stdout.flush()
             progress += 1
+            
             wl = box.wavelength.to_numpy()
-            Rrs = np.zeros(len(wl))
-            Rrs_unc = np.zeros(len(wl))
-            for w in range(len(wl)):
-                rrs = box['rrs'][lat][lon][w].values.item()
-                if rrs == 0:
-                    Rrs[w] = 0.000001
-                    Rrs_unc[w] = 0.000001 * 0.05
-                else:
-                    Rrs[w] = rrs
-                    Rrs_unc[w] = rrs * 0.05 # uncertainty is 5% of rrs value
-
+            Rrs = box['rrs'][lat][lon].to_numpy()
+            Rrs[Rrs == 0] = 0.000001 # insure no zero values
+            Rrs_unc = Rrs * 0.05 # 5% uncertianty for all Rrs values
             sal = box['sal'][lat][lon].data.item()
             temp = box['temp'][lat][lon].data.item() - 273 # convert from kelvin to celcius
 
