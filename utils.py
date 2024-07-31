@@ -164,7 +164,7 @@ def calculate_pigments(box):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
-    values for each lat/lon coordinate in the box's range
+    values for each lat/lon coordinate in the box's range. Pigment values are in units of mg/m^3.
 
     Parameters:
     box (xr dataarray): An xarray data array containing the Rrs for each wavelength, salinity, and temperature at each lat/lon coordinate
@@ -208,10 +208,10 @@ def calculate_pigments(box):
 
     pigments = xr.Dataset(
         {
-            'chla': (['lat', 'lon'], chla, {'units': 'mg/m^3'}),
-            'chla': (['lat', 'lon'], chlb, {'units': 'mg/m^3'}),
-            'chla': (['lat', 'lon'], chlc, {'units': 'mg/m^3'}),
-            'chla': (['lat', 'lon'], ppc, {'units': 'mg/m^3'})
+            'chla': (['lat', 'lon'], chla),
+            'chlb': (['lat', 'lon'], chlb),
+            'chlc': (['lat', 'lon'], chlc),
+            'ppc': (['lat', 'lon'], ppc)
         },
         coords={
             'lat': lat_coord,
@@ -221,38 +221,6 @@ def calculate_pigments(box):
     )
 
     return pigments
-
-    '''
-    chla = xr.DataArray(
-        chla,
-        dims=['lat', 'lon'],
-        coords={'lat': lat_coord, 'lon': lon_coord},
-        name='chla'
-    )
-
-    chlb = xr.DataArray(
-        chlb,
-        dims=['lat', 'lon'],
-        coords={'lat': lat_coord, 'lon': lon_coord},
-        name='chlb'
-    )
-
-    chlc = xr.DataArray(
-        chlc,
-        dims=['lat', 'lon'],
-        coords={'lat': lat_coord, 'lon': lon_coord},
-        name='chlc'
-    )
-
-    ppc = xr.DataArray(
-        ppc,
-        dims=['lat', 'lon'],
-        coords={'lat': lat_coord, 'lon': lon_coord},
-        name='ppc'
-    )
-
-    return xr.Dataset({'chla': chla, 'chlb': chlb, 'chlc': chlc, 'ppc': ppc})
-    '''
 
 def plot_pigments(data, lower_bound, upper_bound, label):
     '''
