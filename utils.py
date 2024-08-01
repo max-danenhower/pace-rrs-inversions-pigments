@@ -15,7 +15,7 @@ This file provides methods to help retrieve Rrs data from the PACE Satellite, us
 chlorophyll c, and PPC concentrations, and plot a visualization of those pigment concentrations on a color map. 
 '''
 
-def load_data(tspan, resolution):
+def load_L3_data(tspan, resolution):
     '''
     Downloads Remote Sensing Reflectance (Rrs) data from the PACE Satellite, as well as salinity and temperature data (from different 
     missions), and saves the data files to local folders names 'rrs_data', 'sal_data', and 'temp_data'
@@ -38,11 +38,35 @@ def load_data(tspan, resolution):
         granule_name='*.DAY.*.Rrs.' + resolution + '.*'
     )
     if (len(rrs_results) > 0):
-        rrs_paths = earthaccess.download(rrs_results, 'rrs_data')
+        rrs_paths = earthaccess.download(rrs_results, 'rrs_L3_data')
     else:
         rrs_paths = []
         print('No Rrs data found')
 
+    sal_paths, temp_paths = _load_sal_temp_data(tspan)
+
+    return rrs_paths, sal_paths, temp_paths
+
+def load_L2_data(tspan, n, s, e, w):
+    bbox = (e, s, w, n)
+
+    rrs_results = earthaccess.search_data(
+        short_name='PACE_OCI_L2_AOP_NRT',
+        bounding_box=bbox,
+        temporal=tspan,
+        count=1
+    )
+    if (len(rrs_results) > 0):
+        rrs_paths = earthaccess.download(rrs_results, 'rrs_L2_data')
+    else:
+        rrs_paths = []
+        print('No L2 AOP data found')
+
+    sal_paths, temp_paths = _load_sal_temp_data(tspan)
+
+    return rrs_paths[0], sal_paths[0], temp_paths[0]
+
+def _load_sal_temp_data(tspan):
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
         temporal=tspan
@@ -63,9 +87,9 @@ def load_data(tspan, resolution):
         temp_paths = []
         print('No temperature data found')
 
-    return rrs_paths, sal_paths, temp_paths
+    return sal_paths, temp_paths
 
-def create_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
+def create_L3_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
     '''
     Creates an xarray data array with latitude and longitude coordinates. Each coordinate contains a hyperspectral Rrs spectra with 
     corresponding wavelenghts, salinity, and temperature. If more than one file for Rrs, salinity, or temperature are given, uses the 
@@ -158,9 +182,111 @@ def create_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
 
     return combined_ds
 
-        
+def calculate_pigments_L2_inv(L2_path, sal_path, temp_path):
+    wl_coord = np.array([339., 341., 344., 346., 348., 351., 353., 356., 358., 361., 363., 366.,
+       368., 371., 373., 375., 378., 380., 383., 385., 388., 390., 393., 395.,
+       398., 400., 403., 405., 408., 410., 413., 415., 418., 420., 422., 425.,
+       427., 430., 432., 435., 437., 440., 442., 445., 447., 450., 452., 455.,
+       457., 460., 462., 465., 467., 470., 472., 475., 477., 480., 482., 485.,
+       487., 490., 492., 495., 497., 500., 502., 505., 507., 510., 512., 515.,
+       517., 520., 522., 525., 527., 530., 532., 535., 537., 540., 542., 545.,
+       547., 550., 553., 555., 558., 560., 563., 565., 568., 570., 573., 575.,
+       578., 580., 583., 586., 588., 591., 593., 596., 598., 601., 603., 605.,
+       608., 610., 613., 615., 618., 620., 623., 625., 627., 630., 632., 635.,
+       637., 640., 641., 642., 643., 645., 646., 647., 648., 650., 651., 652.,
+       653., 655., 656., 657., 658., 660., 661., 662., 663., 665., 666., 667.,
+       668., 670., 671., 672., 673., 675., 676., 677., 678., 679., 681., 682.,
+       683., 684., 686., 687., 688., 689., 691., 692., 693., 694., 696., 697.,
+       698., 699., 701., 702., 703., 704., 706., 707., 708., 709., 711., 712.,
+       713., 714., 717., 719.])
+    
+    dataset = xr.open_dataset(L2_path, group='geophysical_data')
+    rrs = dataset['Rrs']
+    rrs_unc = dataset['Rrs_unc']
+
+    dataset = xr.open_dataset(L2_path, group="navigation_data")
+    dataset = dataset.set_coords(("longitude", "latitude"))
+    dataset_r = xr.merge((rrs, dataset.coords))
+    dataset_ru = xr.merge((rrs_unc, dataset.coords))
+
+    n, s, e, w = _get_user_boundary(dataset_r.latitude.values.max(), dataset_r.latitude.values.min(), 
+                                    dataset_r.longitude.values.max(), dataset_r.longitude.values.min())
+
+    rrs_box = dataset_r["Rrs"].where(
+        (
+            (dataset["latitude"] > s)
+            & (dataset["latitude"] < n)
+            & (dataset["longitude"] < e)
+            & (dataset["longitude"] > w)
+        ),
+        drop=True,
+    )
+
+    rrs_unc_box = dataset_ru["Rrs_unc"].where(
+        (
+            (dataset["latitude"] > s)
+            & (dataset["latitude"] < n)
+            & (dataset["longitude"] < e)
+            & (dataset["longitude"] > w)
+        ),
+        drop=True,
+    )
+
+    sal = xr.open_dataset(sal_path)
+    sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
+
+    temp = xr.open_dataset(temp_path)
+    temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
+    temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
+    temp = temp - 273
+
+    sal = sal.interp(longitude=rrs_box.longitude, latitude=rrs_box.latitude, method='nearest')
+    temp = temp.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
+
+    rrs_box['chla'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
+    rrs_box['chlb'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
+    rrs_box['chlc'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
+    rrs_box['ppc'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
+
+    progress = 1 # keeps track of how many pixels have been calculated
+    pixels = rrs_box.number_of_lines.size * rrs_box.pixels_per_line.size
+
+    for i in range(len(rrs_box.number_of_lines)):
+        for j in range(len(rrs_box.pixels_per_line)):
+            sys.stdout.write('\rProgress: ' + str(progress) + '/' + str(pixels))
+            sys.stdout.flush()
+            progress += 1
+
+            r = rrs_box[i][j].to_numpy()
+            ru = rrs_unc_box[i][j].to_numpy()
+            if (not math.isnan(r[0])):
+                sal_val = sal[i][j].values.item()
+                temp_val = temp[i][j].values.item()
+                if not (math.isnan(r[0]) or math.isnan(sal_val) or math.isnan(temp_val)):
+                    pigs = rrs_inversion_pigments(r, ru, wl_coord, temp_val, sal_val)[0]
+                    rrs_box['chla'][i][j] = pigs[0]
+                    rrs_box['chlb'][i][j] = pigs[1]
+                    rrs_box['chlc'][i][j] = pigs[2]
+                    rrs_box['ppc'][i][j] = pigs[3]
+    
+    return rrs_box
+
+def _get_user_boundary(n_box, s_box, e_box, w_box):
+    print('The downloaded granule has boundaries:')
+    print('north: ', n_box)
+    print('south: ', s_box)
+    print('east: ', e_box)
+    print('west: ', w_box)
+    print('Select a boundary box within these coordinates to calculate pigments for')
+    n = float(input('north (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
+    s = float(input('south (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
+    e = float(input('east (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
+    w = float(input('west (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
+
+    return n, s, e, w
+
             
-def calculate_pigments(box):
+def calculate_pigments_L3_inv(box):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
@@ -222,7 +348,56 @@ def calculate_pigments(box):
 
     return pigments
 
-def plot_pigments(data, lower_bound, upper_bound, label):
+def calculate_pigements_cov(tspan, n, s, e, w):
+    chla_results = earthaccess.search_data(
+        short_name='PACE_OCI_L3M_CHL_NRT',
+        temporal=tspan,
+        granule_name="*.DAY.*.0p1deg.*"
+    )
+
+    chla_paths = earthaccess.download(chla_results, 'chla_data')
+
+    if len(chla_paths) == 1:
+        chla_data = xr.open_dataset(chla_paths)
+        chla_data = chla_data["chlor_a"].sel({"lat": slice(n, s), "lon": slice(w, e)})
+    else:
+        # if given a list of files, create a date averaged dataset of Rrs values 
+        chla_data = xr.open_mfdataset(
+            chla_paths,
+            combine="nested",
+            concat_dim="date"
+        )
+        chla_data = chla_data["chlor_a"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
+        chla_data = chla_data.compute()
+
+    chlb = np.zeros((chla_data.lat.size, chla_data.lon.size))
+    chlc = np.zeros((chla_data.lat.size, chla_data.lon.size))
+    ppc = np.zeros((chla_data.lat.size, chla_data.lon.size))
+
+    for lat in range(len(chla_data.lat)):
+        for lon in range(len(chla_data.lon)):
+            chla = chla_data[lat][lon]
+            chlb[lat][lon] = (chla/5.44)**(1/0.86)
+            chlc[lat][lon] = (chla/6.27)**(1/0.81)
+            ppc[lat][lon] = (chla/11.10)**(1/1.44)
+
+    pigments = xr.Dataset(
+        {
+            'chla': (['lat', 'lon'], chla_data.values),
+            'chlb': (['lat', 'lon'], chlb),
+            'chlc': (['lat', 'lon'], chlc),
+            'ppc': (['lat', 'lon'], ppc)
+        },
+        coords={
+            'lat': chla_data.lat,
+            'lon': chla_data.lon
+        }
+
+    )
+
+    return pigments
+
+def plot_L3_pigments(data, lower_bound, upper_bound, label):
     '''
     Plots the pigment data with lat/lon coordinates using a color map
 
@@ -246,6 +421,21 @@ def plot_pigments(data, lower_bound, upper_bound, label):
     ax.coastlines()
     ax.gridlines(draw_labels={"left": "y", "bottom": "x"})
     data.plot(cmap=custom_cmap, ax=ax, norm=norm)
+    ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
+    plt.show()
+
+def plot_L2_pigments(data, lower_bound, upper_bound):
+    cmap = plt.get_cmap("viridis")
+    colors = cmap(np.linspace(0, 1, cmap.N))
+    colors = np.vstack((np.array([1, 1, 1, 1]), colors)) 
+    custom_cmap = ListedColormap(colors)
+    norm = BoundaryNorm(list(np.linspace(lower_bound, upper_bound, cmap.N)), ncolors=custom_cmap.N) 
+
+    plt.figure()
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax.coastlines()
+    ax.gridlines(draw_labels={"left": "y", "bottom": "x"})
+    data.plot(x="longitude", y="latitude", cmap=custom_cmap, ax=ax, norm=norm)
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
 
