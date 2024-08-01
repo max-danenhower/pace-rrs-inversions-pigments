@@ -38,7 +38,7 @@ def load_L3_data(tspan, resolution):
         granule_name='*.DAY.*.Rrs.' + resolution + '.*'
     )
     if (len(rrs_results) > 0):
-        rrs_paths = earthaccess.download(rrs_results, 'rrs_L3_data')
+        rrs_paths = earthaccess.download(rrs_results, 'rrs_data')
     else:
         rrs_paths = []
         print('No Rrs data found')
@@ -47,26 +47,52 @@ def load_L3_data(tspan, resolution):
 
     return rrs_paths, sal_paths, temp_paths
 
-def load_L2_data(tspan, n, s, e, w):
-    bbox = (e, s, w, n)
+def load_L2_data(tspan, bbox):
+    '''
+    Downloads one L2 PACE apparent optical properties (AOP) file that intersects the n, s, e, w coordinate box passed in, as well as 
+    temperature and salinity files. Data files are saved to local folders named 'L2_data', 'sal_data', and 'temp_data'.
 
-    rrs_results = earthaccess.search_data(
+    Parameters:
+    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
+    must predate the second date in the tuple.
+    bbox (tuple of floats): a tuple representing spatial bounds in the form 
+    (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat)
+
+    Returns:
+    L2_paths (string): A string containing the file path to the L2 file
+    sal_paths (string): A string containing the file path to the salinity file
+    temp_paths (string): A string containing the file path to the temperature file
+    '''
+
+    L2_results = earthaccess.search_data(
         short_name='PACE_OCI_L2_AOP_NRT',
         bounding_box=bbox,
         temporal=tspan,
         count=1
     )
-    if (len(rrs_results) > 0):
-        rrs_paths = earthaccess.download(rrs_results, 'rrs_L2_data')
+
+    if (len(L2_results) > 0):
+        L2_results = earthaccess.download(L2_results, 'rrs_L2_data')
     else:
-        rrs_paths = []
+        L2_paths = []
         print('No L2 AOP data found')
 
     sal_paths, temp_paths = _load_sal_temp_data(tspan)
 
-    return rrs_paths[0], sal_paths[0], temp_paths[0]
+    return L2_paths[0], sal_paths[0], temp_paths[0]
 
 def _load_sal_temp_data(tspan):
+    '''
+    Downloads salinity and temperature files. 
+
+    Parameters:
+    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
+    must predate the second date in the tuple.
+
+    Returns:
+    sal_paths (list): A list containig the file path(s) to the downloaded salinity files.
+    temp_paths (list): A list containig the file path(s) to the downloaded temperature files.
+    '''
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
         temporal=tspan
@@ -89,7 +115,7 @@ def _load_sal_temp_data(tspan):
 
     return sal_paths, temp_paths
 
-def create_L3_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
+def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
     '''
     Creates an xarray data array with latitude and longitude coordinates. Each coordinate contains a hyperspectral Rrs spectra with 
     corresponding wavelenghts, salinity, and temperature. If more than one file for Rrs, salinity, or temperature are given, uses the 
@@ -99,15 +125,18 @@ def create_L3_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
     rrs_paths (array or string): a single file path to a PACE Rrs file or an array of file paths to PACE Rrs files
     sal_paths (array or string): a single file path to a salinity file or an array of file paths to salinity files
     temp_paths (array or string): a single file path to a temperature file or an array of file paths to temperature files
-    n (float): northern boundary of the data array's lat
-    s (float): southern boundary of the data array's lat
-    w (float): western boundary of the data array's lon
-    e (float): western boundary of the data array's lon
+    bbox (tuple of floats): a tuple representing spatial bounds in the form 
+    (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat)
 
     Returns:
     A data array of Rrs values at each wavelength over a specified lat/lon box
     '''
 
+    n = bbox[3]
+    s = bbox[1]
+    e = bbox[2]
+    w = bbox[0]
+    
     if (n < s):
         raise('northern boundary must be greater than southern boundary')
     
@@ -182,7 +211,20 @@ def create_L3_dataset(rrs_paths, sal_paths, temp_paths, n, s, w, e):
 
     return combined_ds
 
-def calculate_pigments_L2_inv(L2_path, sal_path, temp_path):
+def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
+    '''
+    Estimates pigments using data from PACE L2 files. L2 files have 1km spatial resolution and real uncertainty values. 
+
+    Parameters:
+    L2_path (string): A file path to a PACE L2 apparent optical properties (AOP) file. 
+    sal_path (string): A file path to a salinity file.
+    temp_path (string): A file path to a temperature file.
+
+    Returns:
+    An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
+    '''
+
+    # define the 184 wavelengths used by PACE
     wl_coord = np.array([339., 341., 344., 346., 348., 351., 353., 356., 358., 361., 363., 366.,
        368., 371., 373., 375., 378., 380., 383., 385., 388., 390., 393., 395.,
        398., 400., 403., 405., 408., 410., 413., 415., 418., 420., 422., 425.,
@@ -204,6 +246,7 @@ def calculate_pigments_L2_inv(L2_path, sal_path, temp_path):
     rrs = dataset['Rrs']
     rrs_unc = dataset['Rrs_unc']
 
+    # Add latitude and longitude coordinates to the Rrs and Rrs uncertainty datasets
     dataset = xr.open_dataset(L2_path, group="navigation_data")
     dataset = dataset.set_coords(("longitude", "latitude"))
     dataset_r = xr.merge((rrs, dataset.coords))
@@ -238,8 +281,9 @@ def calculate_pigments_L2_inv(L2_path, sal_path, temp_path):
     temp = xr.open_dataset(temp_path)
     temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
     temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
-    temp = temp - 273
+    temp = temp - 273 # convert from kelvin to celcius
 
+    # mesh salinity and temperature onto the same coordinate system as Rrs and Rrs uncertainty
     sal = sal.interp(longitude=rrs_box.longitude, latitude=rrs_box.latitude, method='nearest')
     temp = temp.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
 
@@ -251,27 +295,38 @@ def calculate_pigments_L2_inv(L2_path, sal_path, temp_path):
     progress = 1 # keeps track of how many pixels have been calculated
     pixels = rrs_box.number_of_lines.size * rrs_box.pixels_per_line.size
 
+    # for each coordinate point estimate the pigment concentrations
     for i in range(len(rrs_box.number_of_lines)):
         for j in range(len(rrs_box.pixels_per_line)):
+            # prints total number of pixels and how many have been estimated already
             sys.stdout.write('\rProgress: ' + str(progress) + '/' + str(pixels))
             sys.stdout.flush()
             progress += 1
 
             r = rrs_box[i][j].to_numpy()
             ru = rrs_unc_box[i][j].to_numpy()
-            if (not math.isnan(r[0])):
-                sal_val = sal[i][j].values.item()
-                temp_val = temp[i][j].values.item()
-                if not (math.isnan(r[0]) or math.isnan(sal_val) or math.isnan(temp_val)):
-                    pigs = rrs_inversion_pigments(r, ru, wl_coord, temp_val, sal_val)[0]
-                    rrs_box['chla'][i][j] = pigs[0]
-                    rrs_box['chlb'][i][j] = pigs[1]
-                    rrs_box['chlc'][i][j] = pigs[2]
-                    rrs_box['ppc'][i][j] = pigs[3]
+            sal_val = sal[i][j].values.item()
+            temp_val = temp[i][j].values.item()
+            if not (math.isnan(r[0]) or math.isnan(sal_val) or math.isnan(temp_val)):
+                pigs = rrs_inversion_pigments(r, ru, wl_coord, temp_val, sal_val)[0]
+                rrs_box['chla'][i][j] = pigs[0]
+                rrs_box['chlb'][i][j] = pigs[1]
+                rrs_box['chlc'][i][j] = pigs[2]
+                rrs_box['ppc'][i][j] = pigs[3]
     
     return rrs_box
 
 def _get_user_boundary(n_box, s_box, e_box, w_box):
+    '''
+    Retrieves user input for the coordinate boundaries to estimate pigments for. 
+
+    Parameters:
+    n_box, s_box, e_box, w_box: northern latitude boundary, southern latitude boundary, eastern longitude boundary, and western longitude boundary 
+    of the L2 files swath. Users must choose a boundary box that is within the swath. 
+
+    Returns:
+    The boundaries chosen by the user
+    '''
     print('The downloaded granule has boundaries:')
     print('north: ', n_box)
     print('south: ', s_box)
@@ -286,7 +341,7 @@ def _get_user_boundary(n_box, s_box, e_box, w_box):
     return n, s, e, w
 
             
-def calculate_pigments_L3_inv(box):
+def estimate_inv_pigments_L3(rrs_paths, sal_paths, temp_paths, bbox):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
@@ -298,6 +353,8 @@ def calculate_pigments_L3_inv(box):
     Returns:
     An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
     '''
+    
+    box = _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox)
 
     progress = 1 # keeps track of how many pixels have been calculated
     pixels = box.lat.size * box.lon.size
@@ -308,8 +365,10 @@ def calculate_pigments_L3_inv(box):
     chlc = np.zeros((box.lat.size, box.lon.size))
     ppc = np.zeros((box.lat.size, box.lon.size))
     
+    # for each coordinate point estimate pigment concentrations
     for lat in range(box.lat.size):
         for lon in range(box.lon.size):
+            # prints total number of pixels and how many have been estimated already
             sys.stdout.write('\rProgress: ' + str(progress) + '/' + str(pixels))
             sys.stdout.flush()
             progress += 1
@@ -317,7 +376,7 @@ def calculate_pigments_L3_inv(box):
             wl = box.wavelength.to_numpy()
             Rrs = box['rrs'][lat][lon].to_numpy()
             Rrs[Rrs == 0] = 0.000001 # insure no zero values
-            Rrs_unc = Rrs * 0.05 # 5% uncertianty for all Rrs values
+            Rrs_unc = Rrs * 0.05 # 5% uncertianty used for all values
             sal = box['sal'][lat][lon].data.item()
             temp = box['temp'][lat][lon].data.item() - 273 # convert from kelvin to celcius
 
@@ -328,10 +387,6 @@ def calculate_pigments_L3_inv(box):
                 chlc[lat][lon] = vals[0][2]
                 ppc[lat][lon] = vals[0][3]
 
-    print()
-    lat_coord = box.lat.to_numpy()
-    lon_coord = box.lon.to_numpy()
-
     pigments = xr.Dataset(
         {
             'chla': (['lat', 'lon'], chla),
@@ -340,15 +395,32 @@ def calculate_pigments_L3_inv(box):
             'ppc': (['lat', 'lon'], ppc)
         },
         coords={
-            'lat': lat_coord,
-            'lon': lon_coord
+            'lat': box.lat.to_numpy(),
+            'lon': box.lon.to_numpy()
         }
 
     )
 
     return pigments
 
-def calculate_pigements_cov(tspan, n, s, e, w):
+def estimate_cov_pigments(tspan, bbox):
+    '''
+    Uses the covarying relationship between chlorophyll a and chlorophyll b, c1+c2, and PPC outlined in Chase et. al. 2017 to estimate
+    pigment concentrations. Relies on PACE's chlorophyll a tool to estimate chlorophyll b, c1+c2, and PPC. 
+
+    Parameters:
+    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
+    must predate the second date in the tuple.
+
+    n (float): northern boundary of area to estimate pigments for
+    s (float): southern boundary of area to estimate pigments for
+    w (float): western boundary of area to estimate pigments for
+    e (float): western boundary of area to estimate pigments for
+
+    Returns:
+    An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
+    '''
+    
     chla_results = earthaccess.search_data(
         short_name='PACE_OCI_L3M_CHL_NRT',
         temporal=tspan,
@@ -356,6 +428,11 @@ def calculate_pigements_cov(tspan, n, s, e, w):
     )
 
     chla_paths = earthaccess.download(chla_results, 'chla_data')
+
+    n = bbox[3]
+    s = bbox[1]
+    e = bbox[2]
+    w = bbox[0]
 
     if len(chla_paths) == 1:
         chla_data = xr.open_dataset(chla_paths)
@@ -376,8 +453,12 @@ def calculate_pigements_cov(tspan, n, s, e, w):
 
     for lat in range(len(chla_data.lat)):
         for lon in range(len(chla_data.lon)):
+            # PACE's chlorophyll a estimation is used
             chla = chla_data[lat][lon]
-            chlb[lat][lon] = (chla/5.44)**(1/0.86)
+            
+            # The following calculations are taken from Chase et. al. 2017 and describe the relationship of 
+            # each accessory pigment with chlorophyll a
+            chlb[lat][lon] = (chla/5.44)**(1/0.86) 
             chlc[lat][lon] = (chla/6.27)**(1/0.81)
             ppc[lat][lon] = (chla/11.10)**(1/1.44)
 
@@ -399,7 +480,7 @@ def calculate_pigements_cov(tspan, n, s, e, w):
 
 def plot_L3_pigments(data, lower_bound, upper_bound, label):
     '''
-    Plots the pigment data with lat/lon coordinates using a color map
+    Plots the pigment data from an L3 file with lat/lon coordinates using a color map
 
     Paramaters:
     data (xr data array): An array with pigment values at each lat/lon coordinate
@@ -425,6 +506,16 @@ def plot_L3_pigments(data, lower_bound, upper_bound, label):
     plt.show()
 
 def plot_L2_pigments(data, lower_bound, upper_bound):
+    '''
+    Plots the pigment data from an L2 file with lat/lon coordinates using a color map
+
+    Paramaters:
+    data (xr data array): An array with pigment values at each lat/lon coordinate
+    lower_bound (float): The lowest value represented on the color scale
+    upper_bound (float): The upper value represented on the color scale
+    label (string): A label for the graph
+    '''
+
     cmap = plt.get_cmap("viridis")
     colors = cmap(np.linspace(0, 1, cmap.N))
     colors = np.vstack((np.array([1, 1, 1, 1]), colors)) 
