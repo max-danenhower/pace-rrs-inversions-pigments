@@ -11,6 +11,7 @@ from rrs_inversion_pigments import rrs_inversion_pigments
 
 '''
 Max Danenhower
+
 This file provides methods to help retrieve Rrs data from the PACE Satellite, use that data to calculate chlorophyll a, cholorphyll b, 
 chlorophyll c, and PPC concentrations, and plot a visualization of those pigment concentrations on a color map. 
 '''
@@ -213,7 +214,14 @@ def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
 
 def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
     '''
-    Estimates pigments using data from PACE L2 files. L2 files have 1km spatial resolution and real uncertainty values. 
+    Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
+    +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
+    values for each lat/lon coordinate in the box's range. Pigment values are in units of mg/m^3.
+
+    Uses Rrs and Rrs uncertainty data from PACE L2 AOP files which have 1km resolution. L2 data files represent one swath from the PACE
+    satellite, and thus are restrained to a specific coordinate box.
+
+    See the rrs_inversion_pigments file for more information on the inversion estimation method.
 
     Parameters:
     L2_path (string): A file path to a PACE L2 apparent optical properties (AOP) file. 
@@ -322,7 +330,7 @@ def _get_user_boundary(n_box, s_box, e_box, w_box):
 
     Parameters:
     n_box, s_box, e_box, w_box: northern latitude boundary, southern latitude boundary, eastern longitude boundary, and western longitude boundary 
-    of the L2 files swath. Users must choose a boundary box that is within the swath. 
+    of the L2 file's swath. Users must choose a boundary box that is within the swath. 
 
     Returns:
     The boundaries chosen by the user
@@ -340,12 +348,16 @@ def _get_user_boundary(n_box, s_box, e_box, w_box):
 
     return n, s, e, w
 
-            
 def estimate_inv_pigments_L3(rrs_paths, sal_paths, temp_paths, bbox):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
     values for each lat/lon coordinate in the box's range. Pigment values are in units of mg/m^3.
+    
+    Uses PACE L3 mapped data, which does not come with Rrs uncertainty values. A uniform value of 5% uncertainty is used. 
+    Each L3 mapped data file contains data for the entire globe. 
+
+    See the rrs_inversion_pigments file for more information on the inversion estimation method.
 
     Parameters:
     box (xr dataarray): An xarray data array containing the Rrs for each wavelength, salinity, and temperature at each lat/lon coordinate
@@ -405,8 +417,13 @@ def estimate_inv_pigments_L3(rrs_paths, sal_paths, temp_paths, bbox):
 
 def estimate_cov_pigments(tspan, bbox):
     '''
-    Uses the covarying relationship between chlorophyll a and chlorophyll b, c1+c2, and PPC outlined in Chase et. al. 2017 to estimate
-    pigment concentrations. Relies on PACE's chlorophyll a tool to estimate chlorophyll b, c1+c2, and PPC. 
+    Uses the covarying relationship between chlorophyll a and chlorophyll b, c1+c2, and PPC to estimate pigment concentrations. 
+    Relies on PACE's chlorophyll a tool to estimate chlorophyll b, c1+c2, and PPC. 
+    Covariation pigment estimation method can be found in the following publication:
+
+        Chase, A., E. Boss, I. Cetinic, and W. Slade. 2017. "Estimation of Phytoplankton
+        Accessory Pigments from Hyperspectral Reflectance Spectra: Toward a Global Algorithm."
+        Journal of Geophysical Research: Oceans, doi: 10.1002/2017JC012859.
 
     Parameters:
     tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple

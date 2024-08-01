@@ -17,10 +17,10 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
 
     See the following publication for details on the method:
 
-    Chase, A., E. Boss, I. Cetinic, and W. Slade. 2017. "Estimation of Phytoplankton
-    Accessory Pigments from Hyperspectral Reflectance Spectra: Toward a
-    Global Algorithm."
-    Journal of Geophysical Research: Oceans, doi: 10.1002/2017JC012859.
+        Chase, A., E. Boss, I. Cetinic, and W. Slade. 2017. "Estimation of Phytoplankton
+        Accessory Pigments from Hyperspectral Reflectance Spectra: Toward a
+        Global Algorithm."
+        Journal of Geophysical Research: Oceans, doi: 10.1002/2017JC012859.
 
     NOTE: This code was developed to estimate phytoplankton pigments from
     hyperspectral remote-sensing reflectance (Rrs) data measured in situ at
