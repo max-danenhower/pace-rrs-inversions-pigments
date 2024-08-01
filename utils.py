@@ -82,136 +82,6 @@ def load_L2_data(tspan, bbox):
 
     return L2_paths[0], sal_paths[0], temp_paths[0]
 
-def _load_sal_temp_data(tspan):
-    '''
-    Downloads salinity and temperature files. 
-
-    Parameters:
-    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
-    must predate the second date in the tuple.
-
-    Returns:
-    sal_paths (list): A list containig the file path(s) to the downloaded salinity files.
-    temp_paths (list): A list containig the file path(s) to the downloaded temperature files.
-    '''
-    sal_results = earthaccess.search_data(
-        short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
-        temporal=tspan
-    )
-    if (len(sal_results) > 0):
-        sal_paths = earthaccess.download(sal_results, 'sal_data')
-    else:
-        sal_paths = []
-        print('No salinity data found')
-
-    temp_results = earthaccess.search_data(
-        short_name='MUR-JPL-L4-GLOB-v4.1',
-        temporal=tspan
-    )
-    if (len(temp_results) > 0):
-        temp_paths = earthaccess.download(temp_results, 'temp_data')
-    else:
-        temp_paths = []
-        print('No temperature data found')
-
-    return sal_paths, temp_paths
-
-def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
-    '''
-    Creates an xarray data array with latitude and longitude coordinates. Each coordinate contains a hyperspectral Rrs spectra with 
-    corresponding wavelenghts, salinity, and temperature. If more than one file for Rrs, salinity, or temperature are given, uses the 
-    date averaged values. 
-
-    Parameters:
-    rrs_paths (array or string): a single file path to a PACE Rrs file or an array of file paths to PACE Rrs files
-    sal_paths (array or string): a single file path to a salinity file or an array of file paths to salinity files
-    temp_paths (array or string): a single file path to a temperature file or an array of file paths to temperature files
-    bbox (tuple of floats): a tuple representing spatial bounds in the form 
-    (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat)
-
-    Returns:
-    A data array of Rrs values at each wavelength over a specified lat/lon box
-    '''
-
-    n = bbox[3]
-    s = bbox[1]
-    e = bbox[2]
-    w = bbox[0]
-    
-    if (n < s):
-        raise('northern boundary must be greater than southern boundary')
-    
-    if (e < w):
-        raise('eastern boundary must be greater than western boundary')
-    
-    # creates a dataset of rrs values of the given file
-    if isinstance(rrs_paths, str):
-        rrs_data = xr.open_dataset(rrs_paths)
-        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
-    elif isinstance(rrs_paths, list):
-        # if given a list of files, create a date averaged dataset of Rrs values 
-        rrs_data = xr.open_mfdataset(
-            rrs_paths,
-            combine="nested",
-            concat_dim="date"
-        )
-        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
-        rrs = rrs.compute()
-    else:
-        raise TypeError('rrs_paths must be a string or list')
-
-    # creates a dataset of sal and temp values of the given file
-    if isinstance(sal_paths, str):
-        sal = xr.open_dataset(sal_paths)
-        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
-    elif isinstance(sal_paths, list):
-        # if given a list of files, create a date averaged dataset of salinity values 
-        sal = xr.open_mfdataset(
-            sal_paths,
-            combine="nested",
-            concat_dim="date"
-        )
-        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
-        sal = sal.compute()
-    else:
-        raise TypeError('sal_paths must be a string or list')
-
-    # creates a dataset of sal and temp values of the given file
-    if isinstance(temp_paths, str):
-        temp = xr.open_dataset(temp_paths)
-        temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
-        temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
-    elif isinstance(temp_paths, list):
-        # if given a list of files, create a date averaged dataset of temperature values 
-        temp = xr.open_mfdataset(
-            temp_paths,
-            combine="nested",
-            concat_dim="time"
-        )
-        temp = temp['analysed_sst'].sel({"lat": slice(s, n), "lon": slice(w, e)}).mean('time')
-        temp = temp.compute()
-    else:
-        raise TypeError('temp_paths must be a string or list')
-
-    # merge datasets to Rrs coordinates
-    sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
-    temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
-
-    combined_ds = xr.Dataset(
-        {
-            "rrs": (["lat", "lon", 'wavelength'], rrs.data),
-            'sal': (["lat", "lon"], sal.data),
-            'temp': (["lat", "lon"], temp.data)
-        },
-        coords={
-            "lat": rrs.lat,
-            "lon": rrs.lon,
-            'wavelength': rrs.wavelength
-        }
-    )
-
-    return combined_ds
-
 def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
@@ -234,21 +104,21 @@ def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
 
     # define the 184 wavelengths used by PACE
     wl_coord = np.array([339., 341., 344., 346., 348., 351., 353., 356., 358., 361., 363., 366.,
-       368., 371., 373., 375., 378., 380., 383., 385., 388., 390., 393., 395.,
-       398., 400., 403., 405., 408., 410., 413., 415., 418., 420., 422., 425.,
-       427., 430., 432., 435., 437., 440., 442., 445., 447., 450., 452., 455.,
-       457., 460., 462., 465., 467., 470., 472., 475., 477., 480., 482., 485.,
-       487., 490., 492., 495., 497., 500., 502., 505., 507., 510., 512., 515.,
-       517., 520., 522., 525., 527., 530., 532., 535., 537., 540., 542., 545.,
-       547., 550., 553., 555., 558., 560., 563., 565., 568., 570., 573., 575.,
-       578., 580., 583., 586., 588., 591., 593., 596., 598., 601., 603., 605.,
-       608., 610., 613., 615., 618., 620., 623., 625., 627., 630., 632., 635.,
-       637., 640., 641., 642., 643., 645., 646., 647., 648., 650., 651., 652.,
-       653., 655., 656., 657., 658., 660., 661., 662., 663., 665., 666., 667.,
-       668., 670., 671., 672., 673., 675., 676., 677., 678., 679., 681., 682.,
-       683., 684., 686., 687., 688., 689., 691., 692., 693., 694., 696., 697.,
-       698., 699., 701., 702., 703., 704., 706., 707., 708., 709., 711., 712.,
-       713., 714., 717., 719.])
+                        368., 371., 373., 375., 378., 380., 383., 385., 388., 390., 393., 395.,
+                        398., 400., 403., 405., 408., 410., 413., 415., 418., 420., 422., 425.,
+                        427., 430., 432., 435., 437., 440., 442., 445., 447., 450., 452., 455.,
+                        457., 460., 462., 465., 467., 470., 472., 475., 477., 480., 482., 485.,
+                        487., 490., 492., 495., 497., 500., 502., 505., 507., 510., 512., 515.,
+                        517., 520., 522., 525., 527., 530., 532., 535., 537., 540., 542., 545.,
+                        547., 550., 553., 555., 558., 560., 563., 565., 568., 570., 573., 575.,
+                        578., 580., 583., 586., 588., 591., 593., 596., 598., 601., 603., 605.,
+                        608., 610., 613., 615., 618., 620., 623., 625., 627., 630., 632., 635.,
+                        637., 640., 641., 642., 643., 645., 646., 647., 648., 650., 651., 652.,
+                        653., 655., 656., 657., 658., 660., 661., 662., 663., 665., 666., 667.,
+                        668., 670., 671., 672., 673., 675., 676., 677., 678., 679., 681., 682.,
+                        683., 684., 686., 687., 688., 689., 691., 692., 693., 694., 696., 697.,
+                        698., 699., 701., 702., 703., 704., 706., 707., 708., 709., 711., 712.,
+                        713., 714., 717., 719.])
     
     dataset = xr.open_dataset(L2_path, group='geophysical_data')
     rrs = dataset['Rrs']
@@ -323,30 +193,6 @@ def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
                 rrs_box['ppc'][i][j] = pigs[3]
     
     return rrs_box
-
-def _get_user_boundary(n_box, s_box, e_box, w_box):
-    '''
-    Retrieves user input for the coordinate boundaries to estimate pigments for. 
-
-    Parameters:
-    n_box, s_box, e_box, w_box: northern latitude boundary, southern latitude boundary, eastern longitude boundary, and western longitude boundary 
-    of the L2 file's swath. Users must choose a boundary box that is within the swath. 
-
-    Returns:
-    The boundaries chosen by the user
-    '''
-    print('The downloaded granule has boundaries:')
-    print('north: ', n_box)
-    print('south: ', s_box)
-    print('east: ', e_box)
-    print('west: ', w_box)
-    print('Select a boundary box within these coordinates to calculate pigments for')
-    n = float(input('north (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
-    s = float(input('south (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
-    e = float(input('east (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
-    w = float(input('west (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
-
-    return n, s, e, w
 
 def estimate_inv_pigments_L3(rrs_paths, sal_paths, temp_paths, bbox):
     '''
@@ -547,7 +393,156 @@ def plot_L2_pigments(data, lower_bound, upper_bound):
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
 
+def _load_sal_temp_data(tspan):
+    '''
+    Downloads salinity and temperature files. 
 
+    Parameters:
+    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
+    must predate the second date in the tuple.
+
+    Returns:
+    sal_paths (list): A list containig the file path(s) to the downloaded salinity files.
+    temp_paths (list): A list containig the file path(s) to the downloaded temperature files.
+    '''
+    sal_results = earthaccess.search_data(
+        short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
+        temporal=tspan
+    )
+    if (len(sal_results) > 0):
+        sal_paths = earthaccess.download(sal_results, 'sal_data')
+    else:
+        sal_paths = []
+        print('No salinity data found')
+
+    temp_results = earthaccess.search_data(
+        short_name='MUR-JPL-L4-GLOB-v4.1',
+        temporal=tspan
+    )
+    if (len(temp_results) > 0):
+        temp_paths = earthaccess.download(temp_results, 'temp_data')
+    else:
+        temp_paths = []
+        print('No temperature data found')
+
+    return sal_paths, temp_paths
+
+def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
+    '''
+    Creates an xarray data array with latitude and longitude coordinates. Each coordinate contains a hyperspectral Rrs spectra with 
+    corresponding wavelenghts, salinity, and temperature. If more than one file for Rrs, salinity, or temperature are given, uses the 
+    date averaged values. 
+
+    Parameters:
+    rrs_paths (array or string): a single file path to a PACE Rrs file or an array of file paths to PACE Rrs files
+    sal_paths (array or string): a single file path to a salinity file or an array of file paths to salinity files
+    temp_paths (array or string): a single file path to a temperature file or an array of file paths to temperature files
+    bbox (tuple of floats): a tuple representing spatial bounds in the form 
+    (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat)
+
+    Returns:
+    A data array of Rrs values at each wavelength over a specified lat/lon box
+
+    Raises:
+    TypeError if rrs_paths, sal_paths, or temp_paths is not a string or list.
+    '''
+
+    n = bbox[3]
+    s = bbox[1]
+    e = bbox[2]
+    w = bbox[0]
+    
+    # creates a dataset of rrs values of the given file
+    if isinstance(rrs_paths, str):
+        rrs_data = xr.open_dataset(rrs_paths)
+        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
+    elif isinstance(rrs_paths, list):
+        # if given a list of files, create a date averaged dataset of Rrs values 
+        rrs_data = xr.open_mfdataset(
+            rrs_paths,
+            combine="nested",
+            concat_dim="date"
+        )
+        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
+        rrs = rrs.compute()
+    else:
+        raise TypeError('rrs_paths must be a string or list')
+
+    # creates a dataset of sal and temp values of the given file
+    if isinstance(sal_paths, str):
+        sal = xr.open_dataset(sal_paths)
+        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
+    elif isinstance(sal_paths, list):
+        # if given a list of files, create a date averaged dataset of salinity values 
+        sal = xr.open_mfdataset(
+            sal_paths,
+            combine="nested",
+            concat_dim="date"
+        )
+        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
+        sal = sal.compute()
+    else:
+        raise TypeError('sal_paths must be a string or list')
+
+    # creates a dataset of sal and temp values of the given file
+    if isinstance(temp_paths, str):
+        temp = xr.open_dataset(temp_paths)
+        temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
+        temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
+    elif isinstance(temp_paths, list):
+        # if given a list of files, create a date averaged dataset of temperature values 
+        temp = xr.open_mfdataset(
+            temp_paths,
+            combine="nested",
+            concat_dim="time"
+        )
+        temp = temp['analysed_sst'].sel({"lat": slice(s, n), "lon": slice(w, e)}).mean('time')
+        temp = temp.compute()
+    else:
+        raise TypeError('temp_paths must be a string or list')
+
+    # merge datasets to Rrs coordinates
+    sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
+    temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
+
+    combined_ds = xr.Dataset(
+        {
+            "rrs": (["lat", "lon", 'wavelength'], rrs.data),
+            'sal': (["lat", "lon"], sal.data),
+            'temp': (["lat", "lon"], temp.data)
+        },
+        coords={
+            "lat": rrs.lat,
+            "lon": rrs.lon,
+            'wavelength': rrs.wavelength
+        }
+    )
+
+    return combined_ds
+
+def _get_user_boundary(n_box, s_box, e_box, w_box):
+    '''
+    Retrieves user input for the coordinate boundaries to estimate pigments for. 
+
+    Parameters:
+    n_box, s_box, e_box, w_box: northern latitude boundary, southern latitude boundary, eastern longitude boundary, and western longitude boundary 
+    of the L2 file's swath. Users must choose a boundary box that is within the swath. 
+
+    Returns:
+    The boundaries chosen by the user
+    '''
+    print('The downloaded granule has boundaries:')
+    print('north: ', n_box)
+    print('south: ', s_box)
+    print('east: ', e_box)
+    print('west: ', w_box)
+    print('Select a boundary box within these coordinates to calculate pigments for')
+    n = float(input('north (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
+    s = float(input('south (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
+    e = float(input('east (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
+    w = float(input('west (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
+
+    return n, s, e, w
 
 
     
