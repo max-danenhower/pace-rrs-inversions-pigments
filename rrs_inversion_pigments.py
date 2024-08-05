@@ -29,33 +29,40 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
     eliminate the angular effect of the sun position in the sky relative to
     nadir. Please see above reference for details of these steps.
 
-    INPUTS:
-
-    Rrs     -  Remote-sensing reflectance measurements, defined as Lw/Ed
-    Rrs_unc -  Uncertainy values in Rrs measurements (e.g. could be the standard deviation
-                in Rrs for a given five-minute sample collection), must be on the same 
-                wavlength grid as the Rrs data
-    wl      -  wavelengths associated with Rrs (and Rrs_unc) data
-    tem     -  water temperature at the time of radiometery data collection
-    sal     -  water salinity at the time of radiometery data collection
-
-    OUTPUTS:
+    Parameters:
+    -----------
+    Rrs : Numpy array
+        Remote-sensing reflectance measurements, defined as Lw/Ed
+    Rrs_unc : Numpy array
+        Uncertainy values in Rrs measurements (e.g. could be the standard deviation
+        in Rrs for a given five-minute sample collection), must be on the same 
+        wavlength grid as the Rrs data
+    wl : Numoy array
+        wavelengths associated with Rrs (and Rrs_unc) data
+    tem : int or float
+        water temperature at the time of radiometery data collection
+    sal : int or float
+        water salinity at the time of radiometery data collection
                 
-    pigmedian - Estimated pigment concentrations 
-    pig_unc   - Uncertainties in estimated pigments,
-                calculated using a Monte Carlo method that in turn uses the 
-                reported uncertainties in the A and B coefficients reported
-                in Chase et al. (2017). 
-    vars_units - The names and units of the estimated pigments:
-                chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
-                +c2 (Chlc12), and photoprotective carotenoids (PPC) defined
-                as abcarotene+zeaxanthin+alloxanthin+diadinoxanthin. All
-                pigments and uncertainties are in mg m^-3.
-    amps       - Amplitudes of Gaussian absorption functions
-                representing Chla, Chlb, Chlc12, and PPC. Can be used to derive
-                updated relationships between Gaussians and HPLC pigments.
-
-    -------------------------------------------------------------------------
+    Returns:
+    --------
+    pigmedian : Numpy array
+        Estimated pigment concentrations
+    pig_unc : Numpy Array
+        Uncertainties in estimated pigments,
+        calculated using a Monte Carlo method that in turn uses the 
+        reported uncertainties in the A and B coefficients reported
+        in Chase et al. (2017). 
+    vars_units : string
+        The names and units of the estimated pigments:
+        chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
+        +c2 (Chlc12), and photoprotective carotenoids (PPC) defined
+        as abcarotene+zeaxanthin+alloxanthin+diadinoxanthin. All
+        pigments and uncertainties are in mg m^-3.
+    amps : Numpy array
+        Amplitudes of Gaussian absorption functions
+        representing Chla, Chlb, Chlc12, and PPC. Can be used to derive
+        updated relationships between Gaussians and HPLC pigments.
     '''
 
     # cut off data < 400 or > 600 
