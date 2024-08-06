@@ -9,7 +9,7 @@ import sys
 import math
 from rrs_inversion_pigments import rrs_inversion_pigments
 
-def load_L2_data(tspan, bbox):
+def load_data(tspan, bbox):
     '''
     Downloads one L2 PACE apparent optical properties (AOP) file that intersects the coordinate box passed in, as well as 
     temperature and salinity files. Data files are saved to local folders named 'L2_data', 'sal_data', and 'temp_data'.
@@ -44,11 +44,29 @@ def load_L2_data(tspan, bbox):
         L2_paths = []
         print('No L2 AOP data found')
 
-    sal_paths, temp_paths = _load_sal_temp_data(tspan)
+    sal_results = earthaccess.search_data(
+        short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
+        temporal=tspan
+    )
+    if (len(sal_results) > 0):
+        sal_paths = earthaccess.download(sal_results, 'sal_data')
+    else:
+        sal_paths = []
+        print('No salinity data found')
+
+    temp_results = earthaccess.search_data(
+        short_name='MUR-JPL-L4-GLOB-v4.1',
+        temporal=tspan
+    )
+    if (len(temp_results) > 0):
+        temp_paths = earthaccess.download(temp_results, 'temp_data')
+    else:
+        temp_paths = []
+        print('No temperature data found')
 
     return L2_paths[0], sal_paths[0], temp_paths[0]
 
-def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
+def estimate_inv_pigments(L2_path, sal_path, temp_path):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
@@ -176,7 +194,7 @@ def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
     
     return rrs_box
 
-def plot_L2_pigments(data, lower_bound, upper_bound):
+def plot_pigments(data, lower_bound, upper_bound):
     '''
     Plots the pigment data from an L2 file with lat/lon coordinates using a color map
 
@@ -203,44 +221,6 @@ def plot_L2_pigments(data, lower_bound, upper_bound):
     data.plot(x="longitude", y="latitude", cmap=custom_cmap, ax=ax, norm=norm)
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
-
-def _load_sal_temp_data(tspan):
-    '''
-    Downloads salinity and temperature files within the given date range. 
-
-    Parameters:
-    -----------
-    tspan : tuple of str
-        a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple must predate the second date in the tuple.
-
-    Returns:
-    --------
-    sal_paths : list
-        A list containig the file path(s) to the downloaded salinity files.
-    temp_paths : list
-        A list containig the file path(s) to the downloaded temperature files.
-    '''
-    sal_results = earthaccess.search_data(
-        short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
-        temporal=tspan
-    )
-    if (len(sal_results) > 0):
-        sal_paths = earthaccess.download(sal_results, 'sal_data')
-    else:
-        sal_paths = []
-        print('No salinity data found')
-
-    temp_results = earthaccess.search_data(
-        short_name='MUR-JPL-L4-GLOB-v4.1',
-        temporal=tspan
-    )
-    if (len(temp_results) > 0):
-        temp_paths = earthaccess.download(temp_results, 'temp_data')
-    else:
-        temp_paths = []
-        print('No temperature data found')
-
-    return sal_paths, temp_paths
 
 def _get_user_boundary(lower_bound, upper_bound, card_dir):
     while True:
