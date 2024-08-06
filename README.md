@@ -1,1 +1,1 @@
-Developmental branch for adding new functionality. Jupyter notebook tutorial does not work in this branch.
+Developmental branch for adding new functionality.
