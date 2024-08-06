@@ -128,20 +128,27 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path):
     print('The downloaded granule has latitude boundaries', n_bound, 'to', s_bound, ', longitude boundaries', e_bound, 'to', w_bound)
     print('Select a boundary box within these coordinates to calculate pigments for')
 
-    n = _get_user_boundary(s_bound, n_bound, 'north')
-    s = _get_user_boundary(s_bound, n, 'south')
-    e = _get_user_boundary(w_bound, e_bound, 'east')
-    w = _get_user_boundary(w_bound, e, 'west')
+    while True:
+        try:
+            n = _get_user_boundary(s_bound, n_bound, 'north')
+            s = _get_user_boundary(s_bound, n, 'south')
+            e = _get_user_boundary(w_bound, e_bound, 'east')
+            w = _get_user_boundary(w_bound, e, 'west')
 
-    rrs_box = dataset_r["Rrs"].where(
-        (
-            (dataset["latitude"] > s)
-            & (dataset["latitude"] < n)
-            & (dataset["longitude"] < e)
-            & (dataset["longitude"] > w)
-        ),
-        drop=True,
-    )
+            rrs_box = dataset_r["Rrs"].where(
+                (
+                    (dataset["latitude"] > s)
+                    & (dataset["latitude"] < n)
+                    & (dataset["longitude"] < e)
+                    & (dataset["longitude"] > w)
+                ),
+                drop=True,
+            )
+
+            break
+        except ValueError:
+            print('Could not create boundary box. This is most likely due to the PACE level 2 data file\'s coordinate system not being girdded.')
+            print('Try increasing the size of the boundary box.')
 
     rrs_unc_box = dataset_ru["Rrs_unc"].where(
         (
