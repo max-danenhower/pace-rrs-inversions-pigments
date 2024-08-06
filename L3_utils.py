@@ -12,8 +12,10 @@ from rrs_inversion_pigments import rrs_inversion_pigments
 '''
 Max Danenhower
 
-This file provides methods to help retrieve Rrs data from the PACE Satellite, use that data to calculate chlorophyll a, cholorphyll b, 
-chlorophyll c, and PPC concentrations, and plot a visualization of those pigment concentrations on a color map. 
+This file provides methods to help retrieve level 3 Rrs data from the PACE Satellite, use that data to estimate chlorophyll a, cholorphyll b, 
+chlorophyll c1+c2, and photoprotective carotenoids (PPC) concentrations using an inversion method, and plot a visualization of those 
+pigment concentrations on a color map. Also includes a method to estimate chlorophyll b, c1+c2, and PPC pigments by donwloading chlorophyll a
+data from PACE and then applying a covariation method. 
 '''
 
 def load_data(tspan, resolution):
@@ -77,7 +79,8 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
     values for each lat/lon coordinate in the box's range. Pigment values are in units of mg/m^3.
     
-    Uses PACE L3 mapped data, which does not come with Rrs uncertainty values. A uniform value of 5% uncertainty is used. 
+    Uses PACE L3 mapped data, which does not come with Rrs uncertainty values. A uniform value of 5% uncertainty is used because Rrs
+    uncertainties are not included in level 3 data files. See L2_utils to run inversion method with real uncertainty values. 
     Each L3 mapped data file contains data for the entire globe. 
 
     See rrs_inversion_pigments file for more information on the inversion estimation method.

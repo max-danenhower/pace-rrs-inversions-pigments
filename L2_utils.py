@@ -9,6 +9,16 @@ import sys
 import math
 from rrs_inversion_pigments import rrs_inversion_pigments
 
+'''
+Max Danenhower
+
+This file provides methods to help retrieve Rrs data from the PACE Satellite, use that data to estimate chlorophyll a, cholorphyll b, 
+chlorophyll c1+c2, and photoprotective carotenoids (PPC) concentrations using an inversion method, and plot a visualization of those 
+pigment concentrations on a color map. These methods uses PACE's level 2 apparent optical properties (AOP) files, which include Rrs data
+and their associate uncertainties. Level 2 files contain data from one swath of the PACE satellite, meaning the data are confined to 
+the area of the swath. Level 2 files have 1km resolution. 
+'''
+
 def load_data(tspan, bbox):
     '''
     Downloads one L2 PACE apparent optical properties (AOP) file that intersects the coordinate box passed in, as well as 
@@ -71,9 +81,6 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path):
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
     values for each lat/lon coordinate in the box's range. Pigment values are in units of mg/m^3.
-
-    Uses Rrs and Rrs uncertainty data from PACE L2 AOP files which have 1km resolution. L2 data files represent one swath from the PACE
-    satellite, and thus are restrained to a specific coordinate box.
 
     See rrs_inversion_pigments file for more information on the inversion estimation method.
 
@@ -230,9 +237,27 @@ def plot_pigments(data, lower_bound, upper_bound):
     plt.show()
 
 def _get_user_boundary(lower_bound, upper_bound, card_dir):
+    '''
+    Retrieves user input for boudary box coordinates.
+
+    Parameters:
+    -----------
+    lower_bound : int or float
+        Lowest value the user can input.
+    upper_bound : int or float
+        Highest values the user can input.
+    card_dir : str
+        The cardinal direction the user is selecting a boundary for. Either 'north', 'south', 'east', or 'west'. 
+
+    Returns:
+    --------
+    int or float
+        The boundary inputted by the user. 
+    '''
     while True:
         usr_inp = input(card_dir + ' (between ' + str(upper_bound) + ' and ' + str(lower_bound) + '): ')
         try:
+            usr_inp = usr_inp.strip()
             usr_inp = float(usr_inp)
             if usr_inp < upper_bound and usr_inp > lower_bound:
                 break
