@@ -8,6 +8,7 @@ import earthaccess
 import sys
 import math
 from rrs_inversion_pigments import rrs_inversion_pigments
+import seaborn
 
 '''
 Max Danenhower
@@ -19,18 +20,23 @@ chlorophyll c, and PPC concentrations, and plot a visualization of those pigment
 def load_L3_data(tspan, resolution):
     '''
     Downloads Remote Sensing Reflectance (Rrs) data from the PACE Satellite, as well as salinity and temperature data (from different 
-    missions), and saves the data files to local folders names 'rrs_data', 'sal_data', and 'temp_data'
+    missions), and saves the data files to local folders names 'rrs_data', 'sal_data', and 'temp_data'.
 
     Parameters:
-    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
-    must predate the second date in the tuple.
-
-    resolution (string): the resolution of data being retrieved. Either '1deg', '0.1deg' or '4km'
+    -----------
+    tspan : tuple of str
+        A tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple must predate the second date in the tuple.
+    resolution : str
+        The resolution of data being retrieved. Must be either '1deg', '0p1deg', or '4km'.
 
     Returns:
-    rrs_paths (list): A list containig the file path(s) to the downloaded Rrs PACE files
-    sal_paths (list): A list containig the file path(s) to the downloaded salinity files
-    temp_paths (list): A list containig the file path(s) to the downloaded temperature files
+    --------
+    rrs_paths : list
+        A list containing the file path(s) to the downloaded Rrs PACE files.
+    sal_paths : list
+        A list containing the file path(s) to the downloaded salinity files.
+    temp_paths : list
+        A list containing the file path(s) to the downloaded temperature files.
     '''
 
     rrs_results = earthaccess.search_data(
@@ -50,19 +56,24 @@ def load_L3_data(tspan, resolution):
 
 def load_L2_data(tspan, bbox):
     '''
-    Downloads one L2 PACE apparent optical properties (AOP) file that intersects the n, s, e, w coordinate box passed in, as well as 
+    Downloads one L2 PACE apparent optical properties (AOP) file that intersects the coordinate box passed in, as well as 
     temperature and salinity files. Data files are saved to local folders named 'L2_data', 'sal_data', and 'temp_data'.
 
     Parameters:
-    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
-    must predate the second date in the tuple.
-    bbox (tuple of floats): a tuple representing spatial bounds in the form 
-    (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat)
+    -----------
+    tspan : tuple of str
+        A tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple must predate the second date in the tuple.
+    bbox : tuple of floats or ints
+        A tuple representing spatial bounds in the form (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat).
 
     Returns:
-    L2_paths (string): A string containing the file path to the L2 file
-    sal_paths (string): A string containing the file path to the salinity file
-    temp_paths (string): A string containing the file path to the temperature file
+    --------
+    L2_path : string
+        A single file path to a PACE L2 AOP file.
+    sal_path : string
+        A single file path to a salinity file.
+    temp_path : string
+        A single file path to a temperature file.
     '''
 
     L2_results = earthaccess.search_data(
@@ -91,15 +102,21 @@ def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
     Uses Rrs and Rrs uncertainty data from PACE L2 AOP files which have 1km resolution. L2 data files represent one swath from the PACE
     satellite, and thus are restrained to a specific coordinate box.
 
-    See the rrs_inversion_pigments file for more information on the inversion estimation method.
+    See rrs_inversion_pigments file for more information on the inversion estimation method.
 
     Parameters:
-    L2_path (string): A file path to a PACE L2 apparent optical properties (AOP) file. 
-    sal_path (string): A file path to a salinity file.
-    temp_path (string): A file path to a temperature file.
+    -----------
+    L2_path : str
+        A single file path to a PACE L2 AOP file.
+    sal_path : str
+        A single file path to a salinity file.
+    temp_path : str
+        A single file path to a temperature file.
 
     Returns:
-    An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
+    --------
+    Xarray dataset 
+        Dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
     '''
 
     # define the 184 wavelengths used by PACE
@@ -173,7 +190,7 @@ def estimate_inv_pigments_L2(L2_path, sal_path, temp_path):
     progress = 1 # keeps track of how many pixels have been calculated
     pixels = rrs_box.number_of_lines.size * rrs_box.pixels_per_line.size
 
-    # for each coordinate point estimate the pigment concentrations
+    # for each coordinate estimate the pigment concentrations
     for i in range(len(rrs_box.number_of_lines)):
         for j in range(len(rrs_box.pixels_per_line)):
             # prints total number of pixels and how many have been estimated already
@@ -203,13 +220,23 @@ def estimate_inv_pigments_L3(rrs_paths, sal_paths, temp_paths, bbox):
     Uses PACE L3 mapped data, which does not come with Rrs uncertainty values. A uniform value of 5% uncertainty is used. 
     Each L3 mapped data file contains data for the entire globe. 
 
-    See the rrs_inversion_pigments file for more information on the inversion estimation method.
+    See rrs_inversion_pigments file for more information on the inversion estimation method.
 
     Parameters:
-    box (xr dataarray): An xarray data array containing the Rrs for each wavelength, salinity, and temperature at each lat/lon coordinate
+    -----------
+    rrs_paths : list or str
+        A single file path to a PACE Rrs file or an list of file paths to PACE Rrs files.
+    sal_paths : list or str
+        A single file path to a salinity file or an list of file paths to salinity files.
+    temp_paths : list or str
+        A single file path to a temperature file or an list of file paths to temperature files.
+    bbox : tuple of floats or ints
+        A tuple representing spatial bounds in the form (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat).
 
     Returns:
-    An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
+    --------
+    Xarray dataset 
+        Dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
     '''
     
     box = _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox)
@@ -223,7 +250,7 @@ def estimate_inv_pigments_L3(rrs_paths, sal_paths, temp_paths, bbox):
     chlc = np.zeros((box.lat.size, box.lon.size))
     ppc = np.zeros((box.lat.size, box.lon.size))
     
-    # for each coordinate point estimate pigment concentrations
+    # for each coordinate estimate pigment concentrations
     for lat in range(box.lat.size):
         for lon in range(box.lon.size):
             # prints total number of pixels and how many have been estimated already
@@ -272,16 +299,16 @@ def estimate_cov_pigments(tspan, bbox):
         Journal of Geophysical Research: Oceans, doi: 10.1002/2017JC012859.
 
     Parameters:
-    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
-    must predate the second date in the tuple.
-
-    n (float): northern boundary of area to estimate pigments for
-    s (float): southern boundary of area to estimate pigments for
-    w (float): western boundary of area to estimate pigments for
-    e (float): western boundary of area to estimate pigments for
+    -----------
+    tspan : tuple of str
+        A tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple must predate the second date in the tuple.
+    bbox : tuple of floats or ints
+        A tuple representing spatial bounds in the form (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat).
 
     Returns:
-    An xr dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
+    --------
+    Xarray dataset 
+        Dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate.
     '''
     
     chla_results = earthaccess.search_data(
@@ -314,6 +341,7 @@ def estimate_cov_pigments(tspan, bbox):
     chlc = np.zeros((chla_data.lat.size, chla_data.lon.size))
     ppc = np.zeros((chla_data.lat.size, chla_data.lon.size))
 
+    # for each coordinate estimate pigment concentrations
     for lat in range(len(chla_data.lat)):
         for lon in range(len(chla_data.lon)):
             # PACE's chlorophyll a estimation is used
@@ -346,10 +374,15 @@ def plot_L3_pigments(data, lower_bound, upper_bound, label):
     Plots the pigment data from an L3 file with lat/lon coordinates using a color map
 
     Paramaters:
-    data (xr data array): An array with pigment values at each lat/lon coordinate
-    lower_bound (float): The lowest value represented on the color scale
-    upper_bound (float): The upper value represented on the color scale
-    label (string): A label for the graph
+    -----------
+    data : Xarray data array
+        Contains pigment values to be plotted.
+    lower_bound : float
+        The lowest value represented on the color scale.
+    upper_bound : float
+        The upper value represented on the color scale.
+    label : string
+        A label for the graph.
     '''
 
     data.attrs["long_name"] = label
@@ -373,10 +406,13 @@ def plot_L2_pigments(data, lower_bound, upper_bound):
     Plots the pigment data from an L2 file with lat/lon coordinates using a color map
 
     Paramaters:
-    data (xr data array): An array with pigment values at each lat/lon coordinate
-    lower_bound (float): The lowest value represented on the color scale
-    upper_bound (float): The upper value represented on the color scale
-    label (string): A label for the graph
+    -----------
+    data : Xarray data array
+        Contains pigment values to be plotted.
+    lower_bound : float
+        The lowest value represented on the color scale.
+    upper_bound : float
+        The upper value represented on the color scale.
     '''
 
     cmap = plt.get_cmap("viridis")
@@ -395,15 +431,19 @@ def plot_L2_pigments(data, lower_bound, upper_bound):
 
 def _load_sal_temp_data(tspan):
     '''
-    Downloads salinity and temperature files. 
+    Downloads salinity and temperature files within the given date range. 
 
     Parameters:
-    tspan (tuple of strings): a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple
-    must predate the second date in the tuple.
+    -----------
+    tspan : tuple of str
+        a tuple containing two strings both with format 'YYYY-MM-DD'. The first date in the tuple must predate the second date in the tuple.
 
     Returns:
-    sal_paths (list): A list containig the file path(s) to the downloaded salinity files.
-    temp_paths (list): A list containig the file path(s) to the downloaded temperature files.
+    --------
+    sal_paths : list
+        A list containig the file path(s) to the downloaded salinity files.
+    temp_paths : list
+        A list containig the file path(s) to the downloaded temperature files.
     '''
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
@@ -434,17 +474,25 @@ def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
     date averaged values. 
 
     Parameters:
-    rrs_paths (array or string): a single file path to a PACE Rrs file or an array of file paths to PACE Rrs files
-    sal_paths (array or string): a single file path to a salinity file or an array of file paths to salinity files
-    temp_paths (array or string): a single file path to a temperature file or an array of file paths to temperature files
-    bbox (tuple of floats): a tuple representing spatial bounds in the form 
-    (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat)
+    -----------
+    rrs_paths : list or str
+        A single file path to a PACE Rrs file or an list of file paths to PACE Rrs files.
+    sal_paths : list or str
+        A single file path to a salinity file or an list of file paths to salinity files.
+    temp_paths : list or str
+        A single file path to a temperature file or an list of file paths to temperature files.
+    bbox : tuple of floats or ints
+        A tuple representing spatial bounds in the form (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat).
 
     Returns:
-    A data array of Rrs values at each wavelength over a specified lat/lon box
+    --------
+    Xarray data array
+        A data array of Rrs values at each wavelength over a specified lat/lon box.
 
     Raises:
-    TypeError if rrs_paths, sal_paths, or temp_paths is not a string or list.
+    -------
+    TypeError 
+        If rrs_paths, sal_paths, or temp_paths is not a string or list.
     '''
 
     n = bbox[3]
@@ -465,6 +513,7 @@ def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
         )
         rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
         rrs = rrs.compute()
+            
     else:
         raise TypeError('rrs_paths must be a string or list')
 
@@ -500,7 +549,7 @@ def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
         temp = temp.compute()
     else:
         raise TypeError('temp_paths must be a string or list')
-
+    
     # merge datasets to Rrs coordinates
     sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
     temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
@@ -522,25 +571,77 @@ def _create_L3_dataset(rrs_paths, sal_paths, temp_paths, bbox):
 
 def _get_user_boundary(n_box, s_box, e_box, w_box):
     '''
-    Retrieves user input for the coordinate boundaries to estimate pigments for. 
+    Retrieves user input for the coordinate boundaries to estimate pigments for. Users must choose coordinate boundaries within the file's
+    swath coordinates. 
 
     Parameters:
-    n_box, s_box, e_box, w_box: northern latitude boundary, southern latitude boundary, eastern longitude boundary, and western longitude boundary 
-    of the L2 file's swath. Users must choose a boundary box that is within the swath. 
+    -----------
+    n_box : int or float
+        Northern latitude boundary of the file swath.
+    s_box : int or float
+        Southern latitude boundary of the file swath.
+    e_box : int or float
+        Eastern longitude boundary of the file swath.
+    w_box : int or float
+        Western longitude boundary of the file swath.
 
     Returns:
-    The boundaries chosen by the user
+    --------
+    n : int or float
+        Northern latitude chosen by the user.
+    s : int or float
+        Southern latitude chosen by the user.
+    e : int or float
+        Eastern longitude chosen by the user.
+    w : int or float
+        Western longitude chosen by the user.
     '''
-    print('The downloaded granule has boundaries:')
-    print('north: ', n_box)
-    print('south: ', s_box)
-    print('east: ', e_box)
-    print('west: ', w_box)
+    print('The downloaded granule has boundaries: ', n_box, 'N,', s_box, 'S,', e_box, 'E,', w_box, 'W')
     print('Select a boundary box within these coordinates to calculate pigments for')
-    n = float(input('north (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
-    s = float(input('south (between ' + str(n_box) + ' and ' + str(s_box) + '): '))
-    e = float(input('east (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
-    w = float(input('west (between ' + str(w_box) + ' and ' + str(e_box) + '): '))
+
+    while True:
+        n = input('north (between ' + str(n_box) + ' and ' + str(s_box) + '): ')
+        try:
+            n = float(n)
+            if n < n_box and n > s_box:
+                break
+            else:
+                print('Value must be between ' + str(n_box) + ' and ' + str(s_box) + '.')
+        except ValueError:
+            print('Must enter a float.')
+
+    while True:
+        s = input('south (between ' + str(n) + ' and ' + str(s_box) + '): ')
+        try:
+            s = float(s)
+            if s < n and s > s_box:
+                break
+            else:
+                print('Value must be between ' + str(n) + ' and ' + str(s_box) + '.')
+        except ValueError:
+            print('Must enter a float.')
+
+    while True:
+        e = input('east (between ' + str(w_box) + ' and ' + str(e_box) + '): ')
+        try:
+            e = float(e)
+            if e < e_box and e > w_box:
+                break
+            else:
+                print('Value must be between ' + str(e_box) + ' and ' + str(w_box) + '.')
+        except ValueError:
+            print('Must enter a float.')
+
+    while True:
+        w = input('west (between ' + str(e) + ' and ' + str(w_box) + '): ')
+        try:
+            w = float(w)
+            if w < e and e > w_box:
+                break
+            else:
+                print('Value must be between ' + str(e) + ' and ' + str(w_box) + '.')
+        except ValueError:
+            print('Must enter a float.')
 
     return n, s, e, w
 
