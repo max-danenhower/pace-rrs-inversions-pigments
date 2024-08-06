@@ -53,7 +53,7 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
         calculated using a Monte Carlo method that in turn uses the 
         reported uncertainties in the A and B coefficients reported
         in Chase et al. (2017). 
-    vars_units : string
+    vars_units : str
         The names and units of the estimated pigments:
         chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
         +c2 (Chlc12), and photoprotective carotenoids (PPC) defined
