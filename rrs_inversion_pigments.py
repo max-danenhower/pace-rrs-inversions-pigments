@@ -7,7 +7,7 @@ from scipy.optimize import least_squares
 
 '''
 Originally developed in MatLab by Ali Chase and can be found here: https://github.com/alisonpchase/Rrs_inversion_pigments
-Translated to Python by Max Danenhower.
+Translated to Python by Max Danenhower, Charles Stern, and Ali Chase.
 '''
 
 G1 = 0.0949  # g1 and g2 are values from Gordon et al., 1988
