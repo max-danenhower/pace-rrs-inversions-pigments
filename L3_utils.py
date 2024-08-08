@@ -301,7 +301,7 @@ def _create_dataset(rrs_paths, sal_paths, temp_paths, bbox):
     w = bbox[0]
     
     # creates a dataset of rrs values of the given file
-    if isinstance(rrs_paths, str):
+    if isinstance(rrs_paths, list):
         rrs_data = xr.open_dataset(rrs_paths)
         rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
     elif isinstance(rrs_paths, list):
