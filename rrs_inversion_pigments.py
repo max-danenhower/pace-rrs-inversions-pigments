@@ -5,6 +5,11 @@ from typing import Tuple, Union
 import numpy as np
 from scipy.optimize import least_squares
 
+'''
+Originally developed in MatLab by Ali Chase and can be found here: https://github.com/alisonpchase/Rrs_inversion_pigments
+Translated to Python by Max Danenhower, Charles Stern, and Ali Chase.
+'''
+
 G1 = 0.0949  # g1 and g2 are values from Gordon et al., 1988
 G2 = 0.0794
 LNOT = 400  # reference lambda wavelength (nm)
@@ -17,10 +22,10 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
 
     See the following publication for details on the method:
 
-    Chase, A., E. Boss, I. Cetinic, and W. Slade. 2017. "Estimation of Phytoplankton
-    Accessory Pigments from Hyperspectral Reflectance Spectra: Toward a
-    Global Algorithm."
-    Journal of Geophysical Research: Oceans, doi: 10.1002/2017JC012859.
+        Chase, A., E. Boss, I. Cetinic, and W. Slade. 2017. "Estimation of Phytoplankton
+        Accessory Pigments from Hyperspectral Reflectance Spectra: Toward a
+        Global Algorithm."
+        Journal of Geophysical Research: Oceans, doi: 10.1002/2017JC012859.
 
     NOTE: This code was developed to estimate phytoplankton pigments from
     hyperspectral remote-sensing reflectance (Rrs) data measured in situ at
@@ -29,33 +34,40 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
     eliminate the angular effect of the sun position in the sky relative to
     nadir. Please see above reference for details of these steps.
 
-    INPUTS:
-
-    Rrs     -  Remote-sensing reflectance measurements, defined as Lw/Ed
-    Rrs_unc -  Uncertainy values in Rrs measurements (e.g. could be the standard deviation
-                in Rrs for a given five-minute sample collection), must be on the same 
-                wavlength grid as the Rrs data
-    wl      -  wavelengths associated with Rrs (and Rrs_unc) data
-    tem     -  water temperature at the time of radiometery data collection
-    sal     -  water salinity at the time of radiometery data collection
-
-    OUTPUTS:
+    Parameters:
+    -----------
+    Rrs : Numpy array
+        Remote-sensing reflectance measurements, defined as Lw/Ed
+    Rrs_unc : Numpy array
+        Uncertainy values in Rrs measurements (e.g. could be the standard deviation
+        in Rrs for a given five-minute sample collection), must be on the same 
+        wavlength grid as the Rrs data
+    wl : Numoy array
+        wavelengths associated with Rrs (and Rrs_unc) data
+    tem : int or float
+        water temperature at the time of radiometery data collection
+    sal : int or float
+        water salinity at the time of radiometery data collection
                 
-    pigmedian - Estimated pigment concentrations 
-    pig_unc   - Uncertainties in estimated pigments,
-                calculated using a Monte Carlo method that in turn uses the 
-                reported uncertainties in the A and B coefficients reported
-                in Chase et al. (2017). 
-    vars_units - The names and units of the estimated pigments:
-                chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
-                +c2 (Chlc12), and photoprotective carotenoids (PPC) defined
-                as abcarotene+zeaxanthin+alloxanthin+diadinoxanthin. All
-                pigments and uncertainties are in mg m^-3.
-    amps       - Amplitudes of Gaussian absorption functions
-                representing Chla, Chlb, Chlc12, and PPC. Can be used to derive
-                updated relationships between Gaussians and HPLC pigments.
-
-    -------------------------------------------------------------------------
+    Returns:
+    --------
+    pigmedian : Numpy array
+        Estimated pigment concentrations
+    pig_unc : Numpy Array
+        Uncertainties in estimated pigments,
+        calculated using a Monte Carlo method that in turn uses the 
+        reported uncertainties in the A and B coefficients reported
+        in Chase et al. (2017). 
+    vars_units : str
+        The names and units of the estimated pigments:
+        chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
+        +c2 (Chlc12), and photoprotective carotenoids (PPC) defined
+        as abcarotene+zeaxanthin+alloxanthin+diadinoxanthin. All
+        pigments and uncertainties are in mg m^-3.
+    amps : Numpy array
+        Amplitudes of Gaussian absorption functions
+        representing Chla, Chlb, Chlc12, and PPC. Can be used to derive
+        updated relationships between Gaussians and HPLC pigments.
     '''
 
     # cut off data < 400 or > 600 
