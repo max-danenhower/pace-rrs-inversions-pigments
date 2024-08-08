@@ -180,8 +180,8 @@ def estimate_cov_pigments(tspan, bbox):
         granule_name="*.DAY.*.0p1deg.*"
     )
 
-    if (chla_results < 1):
-        print('No chlorophyll a data found')
+    if (len(chla_results) < 1):
+        print('No chlorophyll a data files found.')
     else:
         chla_paths = earthaccess.download(chla_results, 'chla_data')
 
@@ -276,11 +276,11 @@ def _create_dataset(rrs_paths, sal_paths, temp_paths, bbox):
     Parameters:
     -----------
     rrs_paths : list or str
-        A single file path to a PACE Rrs file or an list of file paths to PACE Rrs files.
+        A single file path to a PACE Rrs file or a list of file paths to PACE Rrs files.
     sal_paths : list or str
-        A single file path to a salinity file or an list of file paths to salinity files.
+        A single file path to a salinity file or a list of file paths to salinity files.
     temp_paths : list or str
-        A single file path to a temperature file or an list of file paths to temperature files.
+        A single file path to a temperature file or a list of file paths to temperature files.
     bbox : tuple of floats or ints
         A tuple representing spatial bounds in the form (lower_left_lon, lower_left_lat, upper_right_lon, upper_right_lat).
 
@@ -313,9 +313,8 @@ def _create_dataset(rrs_paths, sal_paths, temp_paths, bbox):
         )
         rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
         rrs = rrs.compute()
-            
     else:
-        raise TypeError('rrs_paths must be a string or list')
+        raise ValueError('rrs_paths must be a string or a list containing at least one filepath')
 
     # creates a dataset of sal and temp values of the given file
     if isinstance(sal_paths, str):
@@ -331,8 +330,8 @@ def _create_dataset(rrs_paths, sal_paths, temp_paths, bbox):
         sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
         sal = sal.compute()
     else:
-        raise TypeError('sal_paths must be a string or list')
-
+        raise TypeError('temp_paths must be a string or list')
+    
     # creates a dataset of sal and temp values of the given file
     if isinstance(temp_paths, str):
         temp = xr.open_dataset(temp_paths)

@@ -79,8 +79,8 @@ def load_data(tspan, bbox):
 def estimate_inv_pigments(L2_path, sal_path, temp_path):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
-    +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
-    values for each lat/lon coordinate in the box's range. Pigment values are in units of mg/m^3.
+    +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Relies on user input to 
+    create a boundary box to estimate pigments for. Pigment values are in units of mg/m^3. 
 
     See rrs_inversion_pigments file for more information on the inversion estimation method.
 
@@ -132,7 +132,8 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path):
     e_bound = dataset_r.longitude.values.max()
     w_bound = dataset_r.longitude.values.min()
 
-    print('The downloaded granule has latitude boundaries', n_bound, 'to', s_bound, ', longitude boundaries', e_bound, 'to', w_bound)
+    #Retrieve user input, the user inputted boundary box must be within the boundaries of the L2 files swath. 
+    print('The downloaded L2 file has latitude boundaries', n_bound, 'to', s_bound, ', longitude boundaries', e_bound, 'to', w_bound)
     print('Select a boundary box within these coordinates to calculate pigments for')
 
     while True:
