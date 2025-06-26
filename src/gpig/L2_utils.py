@@ -202,7 +202,7 @@ def estimate_inv_pigments(rrs_path, sal_path, temp_path):
                     rrs_box['ppc'][i][j] = pigs[3]
     return rrs_box
 
-def plot_pigments(data, lower_bound, upper_bound):
+def plot_pigments(data, lower_bound, upper_bound, title):
     '''
     Plots the pigment data from an L2 file with lat/lon coordinates using a color map
 
@@ -228,35 +228,5 @@ def plot_pigments(data, lower_bound, upper_bound):
     ax.gridlines(draw_labels={"left": "y", "bottom": "x"})
     data.plot(x="longitude", y="latitude", cmap=custom_cmap, ax=ax, norm=norm)
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
+    plt.title(title)
     plt.show()
-
-def _get_user_boundary(lower_bound, upper_bound, card_dir):
-    '''
-    Retrieves user input for boudary box coordinates.
-
-    Parameters:
-    -----------
-    lower_bound : int or float
-        Lowest value the user can input.
-    upper_bound : int or float
-        Highest values the user can input.
-    card_dir : str
-        The cardinal direction the user is selecting a boundary for. Either 'north', 'south', 'east', or 'west'. 
-
-    Returns:
-    --------
-    int or float
-        The boundary inputted by the user. 
-    '''
-    while True:
-        usr_inp = input(card_dir + ' (between ' + str(upper_bound) + ' and ' + str(lower_bound) + '): ')
-        try:
-            usr_inp = usr_inp.strip()
-            usr_inp = float(usr_inp)
-            if usr_inp < upper_bound and usr_inp > lower_bound:
-                break
-            else:
-                print('Value must be between ' + str(upper_bound) + ' and ' + str(lower_bound) + '.')
-        except ValueError:
-            print('Must enter a float.')
-    return usr_inp
