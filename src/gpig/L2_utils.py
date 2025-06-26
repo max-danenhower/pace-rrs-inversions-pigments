@@ -79,7 +79,7 @@ def load_data(tspan, bbox):
 
     return L2_paths[0], sal_paths[0], temp_paths[0]
 
-def estimate_inv_pigments(L2_path, sal_path, temp_path):
+def estimate_inv_pigments(rrs_path, sal_path, temp_path):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Relies on user input to 
@@ -120,12 +120,12 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path):
                         698., 699., 701., 702., 703., 704., 706., 707., 708., 709., 711., 712.,
                         713., 714., 717., 719.])
     
-    dataset = xr.open_dataset(L2_path, group='geophysical_data')
+    dataset = xr.open_dataset(rrs_path, group='geophysical_data')
     rrs = dataset['Rrs']
     rrs_unc = dataset['Rrs_unc']
 
     # Add latitude and longitude coordinates to the Rrs and Rrs uncertainty datasets
-    dataset = xr.open_dataset(L2_path, group="navigation_data")
+    dataset = xr.open_dataset(rrs_path, group="navigation_data")
     dataset = dataset.set_coords(("longitude", "latitude"))
     dataset_r = xr.merge((rrs, dataset.coords))
     dataset_ru = xr.merge((rrs_unc, dataset.coords))
@@ -135,48 +135,34 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path):
     e_bound = dataset_r.longitude.values.max()
     w_bound = dataset_r.longitude.values.min()
 
-    #Retrieve user input, the user inputted boundary box must be within the boundaries of the L2 files swath. 
-    print('The downloaded L2 file has latitude boundaries', n_bound, 'to', s_bound, ', longitude boundaries', e_bound, 'to', w_bound)
-    print('Select a boundary box within these coordinates to calculate pigments for')
+    print('north',n_bound,'south',s_bound,'east',e_bound,'west',w_bound)
 
-    while True:
-        try:
-            n = _get_user_boundary(s_bound, n_bound, 'north')
-            s = _get_user_boundary(s_bound, n, 'south')
-            e = _get_user_boundary(w_bound, e_bound, 'east')
-            w = _get_user_boundary(w_bound, e, 'west')
-
-            rrs_box = dataset_r["Rrs"].where(
-                (
-                    (dataset["latitude"] > s)
-                    & (dataset["latitude"] < n)
-                    & (dataset["longitude"] < e)
-                    & (dataset["longitude"] > w)
-                ),
-                drop=True,
-            )
-
-            break
-        except ValueError:
-            print('Could not create boundary box. This is most likely due to the PACE level 2 data file\'s coordinate system not being girdded.')
-            print('Try increasing the size of the boundary box.')
+    rrs_box = dataset_r["Rrs"].where(
+        (
+            (dataset["latitude"] > s_bound) # southern boundary latitude
+            & (dataset["latitude"] < n_bound) # northern boundary latitude
+            & (dataset["longitude"] < e_bound) # eastern boundary latitude
+            & (dataset["longitude"] > w_bound) # western boundary latitude
+        ),
+        drop=True,
+    )
 
     rrs_unc_box = dataset_ru["Rrs_unc"].where(
         (
-            (dataset["latitude"] > s)
-            & (dataset["latitude"] < n)
-            & (dataset["longitude"] < e)
-            & (dataset["longitude"] > w)
+            (dataset["latitude"] > s_bound) # southern boundary latitude
+            & (dataset["latitude"] < n_bound) # northern boundary latitude
+            & (dataset["longitude"] < e_bound) # eastern boundary latitude
+            & (dataset["longitude"] > w_bound) # western boundary latitude
         ),
         drop=True,
     )
 
     sal = xr.open_dataset(sal_path)
-    sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
+    sal = sal["smap_sss"].sel({"latitude": slice(n_bound, s_bound), "longitude": slice(w_bound, e_bound)})
 
     temp = xr.open_dataset(temp_path)
     temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
-    temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
+    temp = temp.sel({"lat": slice(s_bound, n_bound), "lon": slice(w_bound, e_bound)})
     temp = temp - 273 # convert from kelvin to celcius
 
     # mesh salinity and temperature onto the same coordinate system as Rrs and Rrs uncertainty
@@ -198,18 +184,22 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path):
             sys.stdout.write('\rProgress: ' + str(progress) + '/' + str(pixels))
             sys.stdout.flush()
             progress += 1
-
-            r = rrs_box[i][j].to_numpy()
-            ru = rrs_unc_box[i][j].to_numpy()
-            sal_val = sal[i][j].values.item()
-            temp_val = temp[i][j].values.item()
-            if not (math.isnan(r[0]) or math.isnan(sal_val) or math.isnan(temp_val)):
-                pigs = rrs_inversion_pigments(r, ru, wl_coord, temp_val, sal_val)[0]
-                rrs_box['chla'][i][j] = pigs[0]
-                rrs_box['chlb'][i][j] = pigs[1]
-                rrs_box['chlc'][i][j] = pigs[2]
-                rrs_box['ppc'][i][j] = pigs[3]
-    
+            if progress == 2111162:
+                rrs_box['chla'][i][j] = 0
+                rrs_box['chlb'][i][j] = 0
+                rrs_box['chlc'][i][j] = 0
+                rrs_box['ppc'][i][j] = 0
+            else:
+                r = rrs_box[i][j].to_numpy()
+                ru = rrs_unc_box[i][j].to_numpy()
+                sal_val = float(sal[i][j].values)
+                temp_val = float(temp[i][j].values)
+                if not (math.isnan(r[0]) or math.isnan(sal_val) or math.isnan(temp_val)):
+                    pigs = rrs_inversion_pigments(r, ru, wl_coord, temp_val, sal_val)[0]
+                    rrs_box['chla'][i][j] = pigs[0]
+                    rrs_box['chlb'][i][j] = pigs[1]
+                    rrs_box['chlc'][i][j] = pigs[2]
+                    rrs_box['ppc'][i][j] = pigs[3]
     return rrs_box
 
 def plot_pigments(data, lower_bound, upper_bound):
