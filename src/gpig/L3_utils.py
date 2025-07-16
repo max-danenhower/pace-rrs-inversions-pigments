@@ -8,7 +8,6 @@ data from PACE and then applying a covariation method.
 '''
 
 import sys
-import math
 
 import numpy as np
 import cartopy.crs as ccrs
@@ -111,10 +110,10 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
     pixels = box.lat.size * box.lon.size
     print('num pixels: ', pixels)
 
-    chla = np.zeros((box.lat.size, box.lon.size))
-    chlb = np.zeros((box.lat.size, box.lon.size))
-    chlc = np.zeros((box.lat.size, box.lon.size))
-    ppc = np.zeros((box.lat.size, box.lon.size))
+    chla = np.full((box.lat.size, box.lon.size), np.nan)
+    chlb = np.full((box.lat.size, box.lon.size), np.nan)
+    chlc = np.full((box.lat.size, box.lon.size), np.nan)
+    ppc = np.full((box.lat.size, box.lon.size), np.nan)
     
     # for each coordinate estimate pigment concentrations
     for lat in range(box.lat.size):
@@ -131,7 +130,7 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
             sal = box['sal'][lat][lon].data.item()
             temp = box['temp'][lat][lon].data.item() - 273 # convert from kelvin to celcius
 
-            if not (math.isnan(Rrs[0]) or math.isnan(sal) or math.isnan(temp)):
+            if not (np.isnan(Rrs[0]) or np.isnan(sal) or np.isnan(temp)):
                 vals = rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal)
                 chla[lat][lon] = vals[0][0]
                 chlb[lat][lon] = vals[0][1]

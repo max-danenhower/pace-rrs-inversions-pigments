@@ -1,10 +1,12 @@
 from gpig import L2_utils
 from datetime import date, timedelta
-import earthaccess
 import ray
 import time
 import numpy as np
 import sys
+
+def main_l3():
+    print()
 
 def main_L2(tspan_begin, tspan_end, n_boundary, s_boundary, e_boundary, w_boundary):
 
