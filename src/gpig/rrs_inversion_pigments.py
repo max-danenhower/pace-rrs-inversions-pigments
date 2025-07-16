@@ -80,6 +80,10 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
     Rrs = Rrs[Iwl]
     Rrs_unc = Rrs_unc[Iwl]
 
+    # check for negatives
+    if np.any(Rrs<0):
+        return np.array([np.nan,np.nan,np.nan,np.nan]), 0,0,0
+
     # Get the absorption and backscattering by water for the temperature and
     # salinity measured coincidently with Rrs
     a_sw, bb_sw = get_water_iops(wl, temp, sal)

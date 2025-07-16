@@ -9,7 +9,6 @@ the area of the swath. Level 2 files have 1km resolution.
 '''
 
 import sys
-import math
 
 import numpy as np
 import cartopy.crs as ccrs
@@ -18,6 +17,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import xarray as xr
 import earthaccess
+import ray
 
 from .rrs_inversion_pigments import rrs_inversion_pigments
 
@@ -44,8 +44,10 @@ def load_data(tspan, bbox):
         A single file path to a temperature file.
     '''
 
+    success = True
+
     L2_results = earthaccess.search_data(
-        short_name='PACE_OCI_L2_AOP',
+        short_name='PACE_OCI_L2_AOP_NRT',
         bounding_box=bbox,
         temporal=tspan,
         count=1
@@ -56,36 +58,40 @@ def load_data(tspan, bbox):
     else:
         L2_paths = []
         print('No L2 AOP data found')
+        success = False
 
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
-        temporal=tspan
+        temporal=tspan,
+        count=1
     )
     if (len(sal_results) > 0):
         sal_paths = earthaccess.download(sal_results, 'sal_data')
     else:
         sal_paths = []
         print('No salinity data found')
+        success = False
 
     temp_results = earthaccess.search_data(
         short_name='MUR-JPL-L4-GLOB-v4.1',
-        temporal=tspan
+        temporal=tspan,
+        count=1
     )
     if (len(temp_results) > 0):
         temp_paths = earthaccess.download(temp_results, 'temp_data')
     else:
         temp_paths = []
         print('No temperature data found')
+        success = False
 
-    return L2_paths[0], sal_paths[0], temp_paths[0]
+    if success:
+        return L2_paths[0], sal_paths[0], temp_paths[0]
+    else:
+        raise Exception('Missing data')
 
-def estimate_inv_pigments(rrs_path, sal_path, temp_path):
+def interpolate_coords(rrs_path, sal_path, temp_path):
     '''
-    Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
-    +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Relies on user input to 
-    create a boundary box to estimate pigments for. Pigment values are in units of mg/m^3. 
-
-    See rrs_inversion_pigments file for more information on the inversion estimation method.
+    Interpolate the salinity and temperature data coordinates onto the PACE L2 Rrs coordinates
 
     Parameters:
     -----------
@@ -98,13 +104,12 @@ def estimate_inv_pigments(rrs_path, sal_path, temp_path):
 
     Returns:
     --------
-    Xarray dataset 
-        Dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
+    rrs_box, rrs_unc_box, wavelength_coords, sal, temp : Xarrays all on the same lat/lon coordinates (except wavelength_coords, which is a 1D array)
     '''
 
     # define wavelengths
     sensor_band_params = xr.open_dataset(rrs_path, group='sensor_band_parameters')
-    wl_coord = sensor_band_params.wavelength_3d.values
+    wavelength_coords = sensor_band_params.wavelength_3d.values
     
     dataset = xr.open_dataset(rrs_path, group='geophysical_data')
     rrs = dataset['Rrs']
@@ -155,38 +160,33 @@ def estimate_inv_pigments(rrs_path, sal_path, temp_path):
     sal = sal.interp(longitude=rrs_box.longitude, latitude=rrs_box.latitude, method='nearest')
     temp = temp.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
 
-    rrs_box['chla'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
-    rrs_box['chlb'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
-    rrs_box['chlc'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
-    rrs_box['ppc'] = (('number_of_lines', 'pixels_per_line'), np.zeros((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size)))
+    rrs_box['chla'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
+    rrs_box['chlb'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
+    rrs_box['chlc'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
+    rrs_box['ppc'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
 
-    progress = 1 # keeps track of how many pixels have been calculated
-    pixels = rrs_box.number_of_lines.size * rrs_box.pixels_per_line.size
+    return rrs_box, rrs_unc_box, wavelength_coords, sal, temp
 
-    # for each coordinate estimate the pigment concentrations
-    for i in range(len(rrs_box.number_of_lines)):
-        for j in range(len(rrs_box.pixels_per_line)):
-            # prints total number of pixels and how many have been estimated already
-            sys.stdout.write('\rProgress: ' + str(progress) + '/' + str(pixels))
-            sys.stdout.flush()
-            progress += 1
-            if progress == 2111162:
-                rrs_box['chla'][i][j] = 0
-                rrs_box['chlb'][i][j] = 0
-                rrs_box['chlc'][i][j] = 0
-                rrs_box['ppc'][i][j] = 0
-            else:
-                r = rrs_box[i][j].to_numpy()
-                ru = rrs_unc_box[i][j].to_numpy()
-                sal_val = float(sal[i][j].values)
-                temp_val = float(temp[i][j].values)
-                if not (math.isnan(r[0]) or math.isnan(sal_val) or math.isnan(temp_val)):
-                    pigs = rrs_inversion_pigments(r, ru, wl_coord, temp_val, sal_val)[0]
-                    rrs_box['chla'][i][j] = pigs[0]
-                    rrs_box['chlb'][i][j] = pigs[1]
-                    rrs_box['chlc'][i][j] = pigs[2]
-                    rrs_box['ppc'][i][j] = pigs[3]
-    return rrs_box
+@ray.remote(num_cpus=1)
+def run_batch(rrs_batch,rrs_unc_batch,wl,temp_batch,sal_batch):
+
+    results = []
+    
+    for i in range(rrs_batch.shape[0]):
+        if np.isnan(rrs_batch[i][0]) or np.isnan(sal_batch[i]) or np.isnan(temp_batch[i]):
+            pigs = np.array([np.nan,np.nan,np.nan,np.nan])
+            results.append(pigs)
+        else:
+            rrs = rrs_batch[i]
+            rrs_unc = rrs_unc_batch[i]
+            sal = sal_batch[i]
+            temp = temp_batch[i]
+
+            pigs = rrs_inversion_pigments(rrs,rrs_unc,wl,float(temp),float(sal))[0]
+            results.append(pigs)
+
+    return results
+
 
 def plot_pigments(data, lower_bound, upper_bound, title):
     '''
