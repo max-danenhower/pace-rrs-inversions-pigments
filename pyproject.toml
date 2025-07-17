@@ -19,7 +19,7 @@ dependencies = [
     "scipy>=1.15.3",
     "xarray>=2025.4.0",
     "numba>=0.59.1",
-    "ray>=2.24.0"
+    "ray[default]>=2.24.0"
 ]
 
 [tool.hatch.version]
