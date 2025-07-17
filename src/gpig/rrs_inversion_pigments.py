@@ -4,7 +4,7 @@ Translated to Python by Max Danenhower, Charles Stern, and Ali Chase.
 '''
 
 from typing import Tuple, Union
-from importlib import resources
+from importlib.resources import files
 
 import numpy as np
 import pandas as pd
@@ -416,8 +416,8 @@ def betasw124_ZHH2009(lambda_, S, Tc, delta=0.039):
 
 def tempsal_corr(lambda_):
     """ """
-    with resources.path(__name__, "resources/Sullivan_pure_water_temp_sal.csv") as p:
-        pwts = pd.read_csv(p)
+    p = files("gpig").joinpath("resources/Sullivan_pure_water_temp_sal.csv")
+    pwts = pd.read_csv(p)
 
     if lambda_.min() < 400 or lambda_.min() > 750:
         raise NotImplementedError(
