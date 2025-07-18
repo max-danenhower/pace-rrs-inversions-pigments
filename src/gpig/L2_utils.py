@@ -44,8 +44,6 @@ def load_data(tspan, bbox):
         A single file path to a temperature file.
     '''
 
-    success = True
-
     L2_results = earthaccess.search_data(
         short_name='PACE_OCI_L2_AOP_NRT',
         bounding_box=bbox,
@@ -56,9 +54,7 @@ def load_data(tspan, bbox):
     if (len(L2_results) > 0):
         L2_paths = earthaccess.download(L2_results, 'L2_data')
     else:
-        L2_paths = []
-        print('No L2 AOP data found')
-        success = False
+        raise Exception('No L2 PACE AOP data found')
 
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
@@ -68,9 +64,7 @@ def load_data(tspan, bbox):
     if (len(sal_results) > 0):
         sal_paths = earthaccess.download(sal_results, 'sal_data')
     else:
-        sal_paths = []
-        print('No salinity data found')
-        success = False
+        raise Exception('No salinity data found')
 
     temp_results = earthaccess.search_data(
         short_name='MUR-JPL-L4-GLOB-v4.1',
@@ -81,13 +75,9 @@ def load_data(tspan, bbox):
         temp_paths = earthaccess.download(temp_results, 'temp_data')
     else:
         temp_paths = []
-        print('No temperature data found')
-        success = False
+        raise Exception('No temperature data found')
 
-    if success:
-        return L2_paths[0], sal_paths[0], temp_paths[0]
-    else:
-        raise Exception('Missing data')
+    return L2_paths[0], sal_paths[0], temp_paths[0]
 
 def interpolate_coords(rrs_path, sal_path, temp_path):
     '''

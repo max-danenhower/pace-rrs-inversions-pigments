@@ -1,12 +1,22 @@
-from gpig import L2_utils
+from gpig import L2_utils, L3_utils
 from datetime import date, timedelta
 import ray
 import time
 import numpy as np
 import sys
 
-def main_l3():
-    print()
+def main_L3(tspan_begin, tspan_end, n_boundary, s_boundary, e_boundary, w_boundary):
+
+    tspan = (tspan_begin, tspan_end)
+
+    bbox = (w_boundary, s_boundary, e_boundary, n_boundary)
+
+    rrs_path,sss_path,sst_path = L3_utils.load_data(tspan)
+
+    r,ru,wl,s,t = L3_utils.interpolate_data(rrs_path, sss_path, sst_path)
+
+    print(r)
+
 
 def main_L2(tspan_begin, tspan_end, n_boundary, s_boundary, e_boundary, w_boundary):
 
@@ -79,6 +89,7 @@ def main_L2(tspan_begin, tspan_end, n_boundary, s_boundary, e_boundary, w_bounda
 
 
 if __name__ == "__main__":
+    '''
 
     arg_names = ['temporal range (begin)', 'temporal range (end)', 'n boundary', 's boundary', 'e boundary', 'w boundary']
 
@@ -91,6 +102,9 @@ if __name__ == "__main__":
         main_L2(*sys.argv[1:])
     else:
         print("Must give 6 arguments.")
+        '''
+    
+    main_L3('2025-07-11', '2025-07-11', -35, -90, 180, -180)
 
     
 

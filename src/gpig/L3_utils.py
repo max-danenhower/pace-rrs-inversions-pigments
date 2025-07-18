@@ -20,7 +20,7 @@ import earthaccess
 from .rrs_inversion_pigments import rrs_inversion_pigments
 
 
-def load_data(tspan, resolution):
+def load_data(tspan):
     '''
     Downloads Remote Sensing Reflectance (Rrs) data from the PACE Satellite, as well as salinity and temperature data (from different 
     missions), and saves the data files to local folders named 'rrs_data', 'sal_data', and 'temp_data'.
@@ -41,41 +41,40 @@ def load_data(tspan, resolution):
     temp_paths : list
         A list containing the file path(s) to the downloaded temperature files.
     '''
-
     rrs_results = earthaccess.search_data(
-        short_name='PACE_OCI_L3M_RRS',
+        short_name='PACE_OCI_L3M_RRS_NRT',
         temporal=tspan,
-        granule_name='*.DAY.*.Rrs.' + resolution + '.*'
+        granule_name='*.DAY.*.Rrs.4km.*',
+        count=1
     )
     if (len(rrs_results) > 0):
         rrs_paths = earthaccess.download(rrs_results, 'rrs_data')
     else:
-        rrs_paths = []
-        print('No Rrs data found')
+        raise Exception('No L3 PACE Rrs data found')
 
     sal_results = earthaccess.search_data(
         short_name='SMAP_JPL_L3_SSS_CAP_8DAY-RUNNINGMEAN_V5',
-        temporal=tspan
+        temporal=tspan,
+        count=1
     )
     if (len(sal_results) > 0):
         sal_paths = earthaccess.download(sal_results, 'sal_data')
     else:
-        sal_paths = []
-        print('No salinity data found')
+        raise Exception('No salinity data found')
 
     temp_results = earthaccess.search_data(
         short_name='MUR-JPL-L4-GLOB-v4.1',
-        temporal=tspan
+        temporal=tspan,
+        count=1
     )
     if (len(temp_results) > 0):
         temp_paths = earthaccess.download(temp_results, 'temp_data')
     else:
-        temp_paths = []
-        print('No temperature data found')
+        raise Exception('No temperature data found')
 
     return rrs_paths, sal_paths, temp_paths
 
-def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
+def run_batch(box):
     '''
     Uses the rrs_inversion_pigments algorithm to calculate chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
     +c2 (Chlc12), and photoprotective carotenoids (PPC) given an Rrs spectra, salinity, and temperature. Calculates the pigment 
@@ -103,8 +102,6 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
     Xarray dataset 
         Dataset containing the Chla, Chlb, Chlc, and PPC concentration at each lat/lon coordinate
     '''
-    
-    box = _create_dataset(rrs_paths, sal_paths, temp_paths, bbox)
 
     progress = 1 # keeps track of how many pixels have been calculated
     pixels = box.lat.size * box.lon.size
@@ -269,7 +266,7 @@ def plot_pigments(data, lower_bound, upper_bound, label):
     ax.add_feature(cfeature.LAND, facecolor='white', zorder=1)
     plt.show()
 
-def _create_dataset(rrs_paths, sal_paths, temp_paths, bbox):
+def interpolate_data(rrs_paths, sal_paths, temp_paths, bbox):
     '''
     Creates an xarray data array with latitude and longitude coordinates. Each coordinate contains a hyperspectral Rrs spectra with 
     corresponding wavelenghts, salinity, and temperature. If more than one file for Rrs, salinity, or temperature are given, uses the 
@@ -303,72 +300,25 @@ def _create_dataset(rrs_paths, sal_paths, temp_paths, bbox):
     w = bbox[0]
     
     # creates a dataset of rrs values of the given file
-    if isinstance(rrs_paths, str):
-        rrs_data = xr.open_dataset(rrs_paths)
-        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
-    elif isinstance(rrs_paths, list):
-        # if given a list of files, create a date averaged dataset of Rrs values 
-        rrs_data = xr.open_mfdataset(
-            rrs_paths,
-            combine="nested",
-            concat_dim="date"
-        )
-        rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)}).mean('date')
-        rrs = rrs.compute()
-    else:
-        raise ValueError('rrs_paths must be a string or a list containing at least one filepath')
+    rrs_data = xr.open_dataset(rrs_paths)
+    rrs = rrs_data["Rrs"].sel({"lat": slice(n, s), "lon": slice(w, e)})
+
+    rrs_unc = rrs*0.05
 
     # creates a dataset of sal and temp values of the given file
-    if isinstance(sal_paths, str):
-        sal = xr.open_dataset(sal_paths)
-        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
-    elif isinstance(sal_paths, list):
-        # if given a list of files, create a date averaged dataset of salinity values 
-        sal = xr.open_mfdataset(
-            sal_paths,
-            combine="nested",
-            concat_dim="date"
-        )
-        sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)}).mean('date')
-        sal = sal.compute()
-    else:
-        raise TypeError('temp_paths must be a string or list')
+    sal = xr.open_dataset(sal_paths)
+    sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
     
     # creates a dataset of sal and temp values of the given file
-    if isinstance(temp_paths, str):
-        temp = xr.open_dataset(temp_paths)
-        temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
-        temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
-    elif isinstance(temp_paths, list):
-        # if given a list of files, create a date averaged dataset of temperature values 
-        temp = xr.open_mfdataset(
-            temp_paths,
-            combine="nested",
-            concat_dim="time"
-        )
-        temp = temp['analysed_sst'].sel({"lat": slice(s, n), "lon": slice(w, e)}).mean('time')
-        temp = temp.compute()
-    else:
-        raise TypeError('temp_paths must be a string or list')
+    temp = xr.open_dataset(temp_paths)
+    temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
+    temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
     
     # merge datasets to Rrs coordinates
     sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
     temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
 
-    combined_ds = xr.Dataset(
-        {
-            "rrs": (["lat", "lon", 'wavelength'], rrs.data),
-            'sal': (["lat", "lon"], sal.data),
-            'temp': (["lat", "lon"], temp.data)
-        },
-        coords={
-            "lat": rrs.lat,
-            "lon": rrs.lon,
-            'wavelength': rrs.wavelength
-        }
-    )
-
-    return combined_ds
+    return rrs, rrs_unc, rrs.wavelength, sal, temp
 
 
     
