@@ -141,18 +141,17 @@ def interpolate_coords(rrs_path, sal_path, temp_path):
         drop=True,
     )
 
-    # creates a dataset of sal and temp values of the given file
     sal = xr.open_dataset(sal_path)
     sal = sal["smap_sss"].sel({"latitude": slice(n_bound, s_bound), "longitude": slice(w_bound, e_bound)})
-    
-    # creates a dataset of sal and temp values of the given file
+
     temp = xr.open_dataset(temp_path)
     temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
     temp = temp.sel({"lat": slice(s_bound, n_bound), "lon": slice(w_bound, e_bound)})
-    
-    # merge datasets to Rrs coordinates
-    sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
-    temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
+    temp = temp - 273 # convert from kelvin to celcius
+
+    # mesh salinity and temperature onto the same coordinate system as Rrs and Rrs uncertainty
+    sal = sal.interp(longitude=rrs_box.longitude, latitude=rrs_box.latitude, method='nearest')
+    temp = temp.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
 
     rrs_box['chla'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
     rrs_box['chlb'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
