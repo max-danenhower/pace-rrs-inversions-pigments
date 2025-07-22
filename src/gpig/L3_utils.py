@@ -7,6 +7,9 @@ pigment concentrations on a color map. Also includes a method to estimate chloro
 data from PACE and then applying a covariation method. 
 '''
 
+import os
+import re
+
 import numpy as np
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -163,18 +166,53 @@ def interpolate_data(rrs_paths, sal_paths, temp_paths, bbox):
 
     rrs_unc = rrs*0.05
 
-    # creates a dataset of sal and temp values of the given file
+    # Get the filename only
+    filename = os.path.basename(rrs_paths)
+
+    # Extract the date and parse the month
+    match = re.search(r"\.(\d{8})T", filename)
+    if match:
+        date_str = match.group(1)
+        month = date_str[4:6]
+
+    sss_key = 'sss' + month
+    sst_key = 'data' + month
+
+    # use climatology files
     sal = xr.open_dataset(sal_paths)
-    sal = sal["smap_sss"].sel({"latitude": slice(n, s), "longitude": slice(w, e)})
-    
-    # creates a dataset of sal and temp values of the given file
+    sal[sss_key] = sal[sss_key].assign_coords({
+        'Number of Latitudes': sal['Latitude'],
+        'Number of Longitudes': sal['Longitude']
+    })
+
+    sal = sal.rename({
+        'Number of Latitudes': 'lat',
+        'Number of Longitudes': 'lon'
+    })
+
+    # re-align longitude coords to -180 to 180 
+    sal = sal.assign_coords({
+        "lon": (((sal.lon + 180) % 360) - 180)
+    })
+
+    sal = sal.sortby('lon')
+
+    sal = sal[sss_key].sel({"lat": slice(s, n), "lon": slice(w, e)})
+
     temp = xr.open_dataset(temp_paths)
-    temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
-    temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
+    temp_lat_dim = 2 * (int(month)-1)
+    temp_lon_dim = temp_lat_dim + 1
     
-    # merge datasets to Rrs coordinates
-    sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
-    temp = temp.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
+    dim1 = 'fakeDim' + str(temp_lat_dim)
+    dim2 = 'fakeDim' + str(temp_lon_dim)
+    temp = temp.rename({dim1: 'Latitude', dim2: 'Longitude'})
+
+    temp = temp[sst_key].sel({"Latitude": slice(n, s), "Longitude": slice(w, e)})
+
+    # mesh salinity and temperature onto the same coordinate system as Rrs and Rrs uncertainty
+    sal = sal.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
+    temp = temp.interp(Longitude=rrs.lon, Latitude=rrs.lat, method='nearest')
+    temp = temp.slope * temp + temp.intercep
 
     return rrs, rrs_unc, rrs.wavelength, sal, temp
 

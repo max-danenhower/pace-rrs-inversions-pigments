@@ -141,17 +141,53 @@ def interpolate_coords(rrs_path, sal_path, temp_path):
         drop=True,
     )
 
+    # Get the filename only
+    filename = os.path.basename(rrs_path)
+
+    # Extract the date and parse the month
+    match = re.search(r"\.(\d{8})T", filename)
+    if match:
+        date_str = match.group(1)
+        month = date_str[4:6]
+
+    sss_key = 'sss' + month
+    sst_key = 'data' + month
+
+    # use climatology files
     sal = xr.open_dataset(sal_path)
-    sal = sal["smap_sss"].sel({"latitude": slice(n_bound, s_bound), "longitude": slice(w_bound, e_bound)})
+    sal[sss_key] = sal[sss_key].assign_coords({
+        'Number of Latitudes': sal['Latitude'],
+        'Number of Longitudes': sal['Longitude']
+    })
+
+    sal = sal.rename({
+        'Number of Latitudes': 'lat',
+        'Number of Longitudes': 'lon'
+    })
+
+    # re-align longitude coords to -180 to 180 
+    sal = sal.assign_coords({
+        "lon": (((sal.lon + 180) % 360) - 180)
+    })
+
+    sal = sal.sortby('lon')
+
+    sal = sal[sss_key].sel({"lat": slice(s_bound, n_bound), "lon": slice(w_bound, e_bound)})
 
     temp = xr.open_dataset(temp_path)
-    temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
-    temp = temp.sel({"lat": slice(s_bound, n_bound), "lon": slice(w_bound, e_bound)})
-    temp = temp - 273 # convert from kelvin to celcius
+    temp_lat_dim = 2 * (int(month)-1)
+    temp_lon_dim = temp_lat_dim + 1
+    
+    dim1 = 'fakeDim' + str(temp_lat_dim)
+    dim2 = 'fakeDim' + str(temp_lon_dim)
+    temp = temp.rename({dim1: 'Latitude', dim2: 'Longitude'})
+
+    temp = temp[sst_key].sel({"Latitude": slice(n_bound, s_bound), "Longitude": slice(w_bound, e_bound)})
 
     # mesh salinity and temperature onto the same coordinate system as Rrs and Rrs uncertainty
-    sal = sal.interp(longitude=rrs_box.longitude, latitude=rrs_box.latitude, method='nearest')
-    temp = temp.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
+    sal = sal.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
+    temp = temp.interp(Longitude=rrs_box.longitude, Latitude=rrs_box.latitude, method='nearest')
+    temp = temp.slope * temp + temp.intercept
 
     rrs_box['chla'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
     rrs_box['chlb'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size), np.nan))
@@ -166,7 +202,7 @@ def run_batch(rrs_batch,rrs_unc_batch,wl,temp_batch,sal_batch):
     results = []
     
     for i in range(rrs_batch.shape[0]):
-        if np.isnan(rrs_batch[i][0]) or np.isnan(sal_batch[i]) or np.isnan(temp_batch[i]):
+        if np.isnan(rrs_batch[i][0]) or sal_batch[i] < 0 or temp_batch[i] < 0:
             pigs = np.array([np.nan,np.nan,np.nan,np.nan])
             results.append(pigs)
         else:
