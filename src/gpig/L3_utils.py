@@ -212,7 +212,7 @@ def interpolate_data(rrs_paths, sal_paths, temp_paths, bbox):
     # mesh salinity and temperature onto the same coordinate system as Rrs and Rrs uncertainty
     sal = sal.interp(lon=rrs.lon, lat=rrs.lat, method='nearest')
     temp = temp.interp(Longitude=rrs.lon, Latitude=rrs.lat, method='nearest')
-    temp = temp.slope * temp + temp.intercep
+    temp = temp.slope * temp + temp.intercept
 
     return rrs, rrs_unc, rrs.wavelength, sal, temp
 
