@@ -159,6 +159,8 @@ def interpolate_data(rrs_paths, sal_paths, temp_paths, bbox):
     s = bbox[1]
     e = bbox[2]
     w = bbox[0]
+
+    #test
     
     # creates a dataset of rrs values of the given file
     rrs_data = xr.open_dataset(rrs_paths)
