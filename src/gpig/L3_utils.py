@@ -171,6 +171,7 @@ def interpolate_data(rrs_paths, sal_paths, temp_paths, bbox):
     temp = xr.open_dataset(temp_paths)
     temp = temp['analysed_sst'].squeeze() # get rid of extra time dimension
     temp = temp.sel({"lat": slice(s, n), "lon": slice(w, e)})
+    temp = temp - 273 # convert from Kelvin to Celsius
     
     # merge datasets to Rrs coordinates
     sal = sal.interp(longitude=rrs.lon, latitude=rrs.lat, method='nearest')
