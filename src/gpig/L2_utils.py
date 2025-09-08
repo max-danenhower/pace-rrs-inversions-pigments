@@ -209,8 +209,8 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path, bbox=None):
             if not (np.isnan(r[0]) or np.isnan(sal_val) or np.isnan(temp_val)):
                 pigs = rrs_inversion_pigments(r, ru, wavelength_coords, temp_val, sal_val)[0]
                 rrs_box['chla'][i][j] = pigs[0]
-                rrs_box['chlb'][i][j] = pigs[1]
-                rrs_box['chlc'][i][j] = pigs[2]
+                rrs_box['chlc'][i][j] = pigs[1]
+                rrs_box['chlb'][i][j] = pigs[2]
                 rrs_box['ppc'][i][j] = pigs[3]
     
     return rrs_box[['chla', 'chlb', 'chlc', 'ppc']]

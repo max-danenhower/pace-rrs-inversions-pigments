@@ -134,8 +134,8 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
             if not (np.isnan(Rrs[0]) or np.isnan(sal) or np.isnan(temp)):
                 vals = rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal)
                 chla[lat][lon] = vals[0][0]
-                chlb[lat][lon] = vals[0][1]
-                chlc[lat][lon] = vals[0][2]
+                chlc[lat][lon] = vals[0][1]
+                chlb[lat][lon] = vals[0][2]
                 ppc[lat][lon] = vals[0][3]
 
     pigments = xr.Dataset(
