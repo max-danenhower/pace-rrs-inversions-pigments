@@ -110,9 +110,9 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
     pixels = box.lat.size * box.lon.size
     print('num pixels: ', pixels)
 
-    chla = np.full((box.lat.size, box.lon.size),np.nan)
-    chlb = np.full((box.lat.size, box.lon.size),np.nan)
-    chlc = np.full((box.lat.size, box.lon.size),np.nan)
+    tchla = np.full((box.lat.size, box.lon.size),np.nan)
+    tchlb = np.full((box.lat.size, box.lon.size),np.nan)
+    chlc12 = np.full((box.lat.size, box.lon.size),np.nan)
     ppc = np.full((box.lat.size, box.lon.size),np.nan)
 
     wl = box.wavelength.to_numpy()
@@ -133,16 +133,16 @@ def estimate_inv_pigments(rrs_paths, sal_paths, temp_paths, bbox):
 
             if not (np.isnan(Rrs[0]) or np.isnan(sal) or np.isnan(temp)):
                 vals = rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal)
-                chla[lat][lon] = vals[0][0]
-                chlc[lat][lon] = vals[0][1]
-                chlb[lat][lon] = vals[0][2]
+                tchla[lat][lon] = vals[0][0]
+                chlc12[lat][lon] = vals[0][1]
+                tchlb[lat][lon] = vals[0][2]
                 ppc[lat][lon] = vals[0][3]
 
     pigments = xr.Dataset(
         {
-            'chla': (['lat', 'lon'], chla),
-            'chlb': (['lat', 'lon'], chlb),
-            'chlc': (['lat', 'lon'], chlc),
+            'tchla': (['lat', 'lon'], tchla),
+            'tchlb': (['lat', 'lon'], tchlb),
+            'chlc12': (['lat', 'lon'], chlc12),
             'ppc': (['lat', 'lon'], ppc),
         },
         coords={
