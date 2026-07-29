@@ -61,13 +61,13 @@ def rrs_inversion_pigments(Rrs, Rrs_unc, wl, temp, sal):
         in Chase et al. (2017). 
     str
         The names and units of the estimated pigments:
-        chlorophyll a (Chla), chlorophyll b (Chlb), chlorophyll c1
-        +c2 (Chlc12), and photoprotective carotenoids (PPC) defined
+        chlorophyll a (Chla), chlorophyll c1+c2 (Chlc12), 
+        chlorophyll b (Chlb), and photoprotective carotenoids (PPC) defined
         as abcarotene+zeaxanthin+alloxanthin+diadinoxanthin. All
-        pigments and uncertainties are in mg m^-3.
+        pigments and uncertainties are in units of mg m^-3.
     numpy.ndarray
         Amplitudes of Gaussian absorption functions
-        representing Chla, Chlb, Chlc12, and PPC. Can be used to derive
+        representing Chla, Chlc12, Chlb, and PPC. Can be used to derive
         updated relationships between Gaussians and HPLC pigments.
     '''
 
