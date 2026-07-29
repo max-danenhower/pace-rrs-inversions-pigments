@@ -186,9 +186,9 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path, bbox=None):
     temp = temp.interp(lon=rrs_box.longitude, lat=rrs_box.latitude, method='nearest')
     temp = temp - 273 # convert from kelvin to celcius
     
-    rrs_box['chla'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
-    rrs_box['chlb'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
-    rrs_box['chlc'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
+    rrs_box['tchla'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
+    rrs_box['tchlb'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
+    rrs_box['chlc12'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
     rrs_box['ppc'] = (('number_of_lines', 'pixels_per_line'), np.full((rrs_box.number_of_lines.size, rrs_box.pixels_per_line.size),np.nan))
 
     progress = 1 # keeps track of how many pixels have been calculated
@@ -208,12 +208,12 @@ def estimate_inv_pigments(L2_path, sal_path, temp_path, bbox=None):
             temp_val = temp[i][j].values.item()
             if not (np.isnan(r[0]) or np.isnan(sal_val) or np.isnan(temp_val)):
                 pigs = rrs_inversion_pigments(r, ru, wavelength_coords, temp_val, sal_val)[0]
-                rrs_box['chla'][i][j] = pigs[0]
-                rrs_box['chlc'][i][j] = pigs[1]
-                rrs_box['chlb'][i][j] = pigs[2]
+                rrs_box['tchla'][i][j] = pigs[0]
+                rrs_box['chlc12'][i][j] = pigs[1]
+                rrs_box['tchlb'][i][j] = pigs[2]
                 rrs_box['ppc'][i][j] = pigs[3]
     
-    return rrs_box[['chla', 'chlb', 'chlc', 'ppc']]
+    return rrs_box[['tchla', 'tchlb', 'chlc12', 'ppc']]
 
 def plot_pigments(data, lower_bound, upper_bound):
     '''
